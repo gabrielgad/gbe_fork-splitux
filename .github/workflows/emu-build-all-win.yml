@@ -43,6 +43,8 @@ jobs:
             "steamclient_experimental_loader",
             "steamclient_experimental_extra",
             "lib_game_overlay_renderer",
+            # networking sockets library (for games using GameNetworkingSockets.dll)
+            "lib_steamnetworkingsockets",
             # steam old lib
             "lib_steam_old",
             # tools
