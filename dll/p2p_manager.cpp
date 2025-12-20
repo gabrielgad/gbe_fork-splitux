@@ -143,10 +143,24 @@ P2p_Manager::Connection_t* P2p_Manager::create_connection(const CSteamID &remote
     connection.peer_conn.remote_id = remote_id;
     connection.peer_conn.my_dest_id = my_id;
 
+    // Check if we should auto-accept P2P sessions from this remote
+    const auto my_settings = is_same_peer(my_id, settings_client->get_local_steam_id())
+        ? settings_client
+        : settings_server;
+
+    if (my_settings->hasP2PAutoAcceptFromFriend(remote_id.ConvertToUint64())) {
+        connection.is_accepted = true;
+        PRINT_DEBUG(
+            "auto-accepting P2P session from [%llu], I am [%llu]",
+            remote_id.ConvertToUint64(), my_id.ConvertToUint64()
+        );
+    }
+
     auto &conn_ref = connections.emplace_back(std::move(connection));
     PRINT_DEBUG(
-        "created for/them=[%llu], from/me=[%llu]",
-        conn_ref.peer_conn.remote_id.ConvertToUint64(), conn_ref.peer_conn.my_dest_id.ConvertToUint64()
+        "created for/them=[%llu], from/me=[%llu], is_accepted=%d",
+        conn_ref.peer_conn.remote_id.ConvertToUint64(), conn_ref.peer_conn.my_dest_id.ConvertToUint64(),
+        (int)conn_ref.is_accepted
     );
     return &conn_ref;
 }

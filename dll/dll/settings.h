@@ -402,6 +402,10 @@ public:
     // old P2P (ISteamNetworking) behavior
     OldP2pBehavior old_p2p_behavior{};
 
+    // P2P session auto-accept (fixes games that don't properly handle P2PSessionRequest_t)
+    bool auto_accept_p2p_sessions_any = false;
+    std::set<uint64_t> auto_accept_p2p_sessions_friends{};
+
     // voice chat
     bool enable_voice_chat = false;
 
@@ -488,6 +492,11 @@ public:
     void addFriendToOverlayAutoSend(uint64_t friend_id);
     bool hasOverlayAutoSendToFriend(uint64_t friend_id) const;
     size_t overlayAutoSendInvitesCount() const;
+
+    // P2P session auto-accept (for games with broken P2PSessionRequest_t handling)
+    void acceptAnyP2PSessions(bool value);
+    void addFriendToP2PAutoAccept(uint64_t friend_id);
+    bool hasP2PAutoAcceptFromFriend(uint64_t friend_id) const;
 };
 
 #endif // SETTINGS_INCLUDE_H

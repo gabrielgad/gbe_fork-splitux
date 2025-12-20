@@ -1329,6 +1329,39 @@ static void parse_auto_send_invite(class Settings *settings_client, class Settin
     }
 }
 
+// auto_accept_p2p.txt - Auto-accept P2P sessions (ISteamNetworking)
+// Fixes games that don't properly handle P2PSessionRequest_t callbacks
+static void parse_auto_accept_p2p(class Settings *settings_client, class Settings *settings_server)
+{
+    std::string auto_accept_p2p_path = Local_Storage::get_game_settings_path() + "auto_accept_p2p.txt";
+    std::ifstream input( std::filesystem::u8path(auto_accept_p2p_path) );
+    if (input.is_open()) {
+        bool accept_any_p2p = true;
+        common_helpers::consume_bom(input);
+        for( std::string line; getline( input, line ); ) {
+            line = common_helpers::string_strip(line);
+            if (!line.empty()) {
+                accept_any_p2p = false;
+                try {
+                    auto friend_id = std::stoull(line);
+                    settings_client->addFriendToP2PAutoAccept((uint64_t)friend_id);
+                    settings_server->addFriendToP2PAutoAccept((uint64_t)friend_id);
+                    PRINT_DEBUG("Auto accepting P2P sessions from user with ID (SteamID64) = %llu", friend_id);
+                } catch (...) {}
+            }
+        }
+
+        if (accept_any_p2p) {
+            PRINT_DEBUG("Auto accepting any P2P session");
+            settings_client->acceptAnyP2PSessions(true);
+            settings_server->acceptAnyP2PSessions(true);
+        } else {
+            settings_client->acceptAnyP2PSessions(false);
+            settings_server->acceptAnyP2PSessions(false);
+        }
+    }
+}
+
 // branches.json
 static bool parse_branches_file(
     const std::string &base_path, const bool force_load,
@@ -1915,6 +1948,7 @@ uint32 create_localstorage_settings(Settings **settings_client_out, Settings **s
     load_gamecontroller_settings(settings_client);
     parse_auto_accept_invite(settings_client, settings_server);
     parse_auto_send_invite(settings_client, settings_server);
+    parse_auto_accept_p2p(settings_client, settings_server);
     parse_ip_country(local_storage, settings_client, settings_server);
 
     parse_encrypted_app_ticket(settings_client, settings_server);

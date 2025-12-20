@@ -468,3 +468,21 @@ size_t Settings::overlayAutoSendInvitesCount() const
 {
     return auto_send_overlay_invites_friends.size();
 }
+
+void Settings::acceptAnyP2PSessions(bool value)
+{
+    auto_accept_p2p_sessions_any = value;
+}
+
+void Settings::addFriendToP2PAutoAccept(uint64_t friend_id)
+{
+    auto_accept_p2p_sessions_friends.insert(friend_id);
+}
+
+bool Settings::hasP2PAutoAcceptFromFriend(uint64_t friend_id) const
+{
+    if (auto_accept_p2p_sessions_any) {
+        return true;
+    }
+    return !!auto_accept_p2p_sessions_friends.count(friend_id);
+}
