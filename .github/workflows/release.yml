@@ -21,7 +21,7 @@ jobs:
 
   emu-win-prep:
     needs: ["emu-win-all"]
-    runs-on: "windows-2022"
+    runs-on: [self-hosted, windows, x64]
     steps:
       # on Windows Git will auto change line ending to CRLF, not preferable
       - name: "Ensure LF line ending"
@@ -193,7 +193,7 @@ jobs:
 
   migrate_gse_script-win-prep:
     needs: ["migrate_gse_script-win"]
-    runs-on: "windows-2022"
+    runs-on: [self-hosted, windows, x64]
     steps:
       # on Windows Git will auto change line ending to CRLF, not preferable
       - name: "Ensure LF line ending"
