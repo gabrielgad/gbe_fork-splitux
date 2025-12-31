@@ -18,14 +18,9 @@ env:
 
 jobs:
   build:
-    runs-on: "windows-2022"
+    runs-on: [self-hosted, windows, x64]
 
     steps:
-      - name: "Set up Python 3.12"
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       # on Windows Git will auto change line ending to CRLF, not preferable
       - name: "Ensure LF line ending"
         shell: "cmd"

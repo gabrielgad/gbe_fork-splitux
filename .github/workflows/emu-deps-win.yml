@@ -19,7 +19,7 @@ env:
 
 jobs:
   deps-build:
-    runs-on: "windows-2022"
+    runs-on: [self-hosted, windows, x64]
     if: ${{ !cancelled() }}
 
     steps:
