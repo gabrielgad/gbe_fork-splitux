@@ -19,14 +19,13 @@ env:
 jobs:
   build:
     runs-on: [self-hosted, windows, x64]
+    defaults:
+      run:
+        shell: cmd
 
     steps:
-      # on Windows Git will auto change line ending to CRLF, not preferable
-      - name: "Ensure LF line ending"
-        shell: "cmd"
-        working-directory: "${{ github.workspace }}"
+      - name: "Configure git line endings"
         run: |
-          git config --local core.autocrlf false
           git config --system core.autocrlf false
           git config --global core.autocrlf false
 
@@ -40,15 +39,11 @@ jobs:
           ref: "third-party/build/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
 
-      # env
       - name: "Install env"
-        shell: cmd
         working-directory: "${{ env.SCRIPT_BASE_DIR }}"
         run: recreate_venv_win.bat
 
-      # build
       - name: "Rebuild"
-        shell: cmd
         working-directory: "${{ env.SCRIPT_BASE_DIR }}"
         run: rebuild_win.bat
 

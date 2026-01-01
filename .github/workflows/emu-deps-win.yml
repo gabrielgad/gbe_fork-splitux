@@ -21,14 +21,13 @@ jobs:
   deps-build:
     runs-on: [self-hosted, windows, x64]
     if: ${{ !cancelled() }}
+    defaults:
+      run:
+        shell: cmd
 
     steps:
-      # on Windows Git will auto change line ending to CRLF, not preferable
-      - name: "Ensure LF line ending"
-        shell: "cmd"
-        working-directory: ${{ github.workspace }}
+      - name: "Configure git line endings"
         run: |
-          git config --local core.autocrlf false
           git config --system core.autocrlf false
           git config --global core.autocrlf false
 
@@ -75,7 +74,6 @@ jobs:
 
       - name: "Build deps"
         if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
-        shell: "cmd"
         working-directory: "${{ github.workspace }}"
         run: |
           set "CMAKE_GENERATOR=Visual Studio 17 2022"

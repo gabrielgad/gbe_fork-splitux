@@ -28,6 +28,9 @@ jobs:
     runs-on: [self-hosted, windows, x64]
     if: ${{ !cancelled() }}
     continue-on-error: true
+    defaults:
+      run:
+        shell: cmd
 
     strategy:
       fail-fast: false
@@ -59,16 +62,11 @@ jobs:
             arch: x64
 
     steps:
-      # on Windows Git will auto change line ending to CRLF, not preferable
-      - name: "Ensure LF line ending"
-        shell: "cmd"
-        working-directory: "${{ github.workspace }}"
+      - name: "Configure git line endings"
         run: |
-          git config --local core.autocrlf false
           git config --system core.autocrlf false
           git config --global core.autocrlf false
 
-      # clone branch
       - name: "Checkout branch"
         uses: actions/checkout@v4
 
@@ -93,16 +91,12 @@ jobs:
           ref: "third-party/build/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
 
-      # generate project files
       - name: "Generate project files"
-        shell: "cmd"
         working-directory: "${{ github.workspace }}"
         run: |
           "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2022
 
-      # build target
       - name: "Build target"
-        shell: "cmd"
         working-directory: "${{ github.workspace }}/build/project/vs2022/win"
         run: |
           msbuild /nologo /target:${{ matrix.prj }} /m:2 /v:n /p:Configuration=${{ matrix.cfg }},Platform=${{ matrix.arch }} gbe.sln
