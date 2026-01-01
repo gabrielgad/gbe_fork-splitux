@@ -28,9 +28,6 @@ jobs:
     runs-on: [self-hosted, windows, x64]
     if: ${{ !cancelled() }}
     continue-on-error: true
-    defaults:
-      run:
-        shell: powershell
 
     strategy:
       fail-fast: false
@@ -62,11 +59,6 @@ jobs:
             arch: x64
 
     steps:
-      - name: "Configure git line endings"
-        run: |
-          git config --system core.autocrlf false
-          git config --global core.autocrlf false
-
       - name: "Checkout branch"
         uses: actions/checkout@v4
 
@@ -92,14 +84,16 @@ jobs:
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
 
       - name: "Generate project files"
+        shell: cmd
         working-directory: "${{ github.workspace }}"
         run: |
-          & "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2022
+          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2022
 
       - name: "Build target"
+        shell: cmd
         working-directory: "${{ github.workspace }}/build/project/vs2022/win"
         run: |
-          & msbuild /nologo /target:${{ matrix.prj }} /m:2 /v:n /p:Configuration=${{ matrix.cfg }},Platform=${{ matrix.arch }} gbe.sln
+          msbuild /nologo /target:${{ matrix.prj }} /m:2 /v:n /p:Configuration=${{ matrix.cfg }},Platform=${{ matrix.arch }} gbe.sln
 
       # upload artifact/package to github Actions
       - name: "Upload target package"

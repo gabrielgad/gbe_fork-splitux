@@ -19,16 +19,8 @@ env:
 jobs:
   build:
     runs-on: [self-hosted, windows, x64]
-    defaults:
-      run:
-        shell: powershell
 
     steps:
-      - name: "Configure git line endings"
-        run: |
-          git config --system core.autocrlf false
-          git config --global core.autocrlf false
-
       - name: "Checkout branch"
         uses: actions/checkout@v4
 
@@ -40,12 +32,14 @@ jobs:
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
 
       - name: "Install env"
+        shell: cmd
         working-directory: "${{ env.SCRIPT_BASE_DIR }}"
-        run: cmd /c recreate_venv_win.bat
+        run: recreate_venv_win.bat
 
       - name: "Rebuild"
+        shell: cmd
         working-directory: "${{ env.SCRIPT_BASE_DIR }}"
-        run: cmd /c rebuild_win.bat
+        run: rebuild_win.bat
 
       # upload artifact
       - name: "Upload build package"
