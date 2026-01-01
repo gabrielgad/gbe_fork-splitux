@@ -21,7 +21,7 @@ jobs:
     runs-on: [self-hosted, windows, x64]
     defaults:
       run:
-        shell: cmd
+        shell: powershell
 
     steps:
       - name: "Configure git line endings"
@@ -41,11 +41,11 @@ jobs:
 
       - name: "Install env"
         working-directory: "${{ env.SCRIPT_BASE_DIR }}"
-        run: recreate_venv_win.bat
+        run: cmd /c recreate_venv_win.bat
 
       - name: "Rebuild"
         working-directory: "${{ env.SCRIPT_BASE_DIR }}"
-        run: rebuild_win.bat
+        run: cmd /c rebuild_win.bat
 
       # upload artifact
       - name: "Upload build package"

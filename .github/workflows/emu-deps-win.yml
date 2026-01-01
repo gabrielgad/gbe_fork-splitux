@@ -23,7 +23,7 @@ jobs:
     if: ${{ !cancelled() }}
     defaults:
       run:
-        shell: cmd
+        shell: powershell
 
     steps:
       - name: "Configure git line endings"
@@ -76,5 +76,5 @@ jobs:
         if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
         working-directory: "${{ github.workspace }}"
         run: |
-          set "CMAKE_GENERATOR=Visual Studio 17 2022"
-          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5-deps.lua --64-build --32-build --all-ext --all-build --j=2 --verbose --clean --os=windows vs2022
+          $env:CMAKE_GENERATOR = "Visual Studio 17 2022"
+          & "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5-deps.lua --64-build --32-build --all-ext --all-build --j=2 --verbose --clean --os=windows vs2022

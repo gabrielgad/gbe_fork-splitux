@@ -30,7 +30,7 @@ jobs:
     continue-on-error: true
     defaults:
       run:
-        shell: cmd
+        shell: powershell
 
     strategy:
       fail-fast: false
@@ -94,12 +94,12 @@ jobs:
       - name: "Generate project files"
         working-directory: "${{ github.workspace }}"
         run: |
-          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2022
+          & "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2022
 
       - name: "Build target"
         working-directory: "${{ github.workspace }}/build/project/vs2022/win"
         run: |
-          msbuild /nologo /target:${{ matrix.prj }} /m:2 /v:n /p:Configuration=${{ matrix.cfg }},Platform=${{ matrix.arch }} gbe.sln
+          & msbuild /nologo /target:${{ matrix.prj }} /m:2 /v:n /p:Configuration=${{ matrix.cfg }},Platform=${{ matrix.arch }} gbe.sln
 
       # upload artifact/package to github Actions
       - name: "Upload target package"
