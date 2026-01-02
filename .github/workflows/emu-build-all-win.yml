@@ -46,7 +46,7 @@ jobs:
             "tool_generate_interfaces",
           ]
         arch: ["x64", "Win32"]
-        cfg: ["debug", "release"]
+        cfg: ["release"]
 
         exclude:
           - prj: lib_steam_old

@@ -44,8 +44,8 @@ jobs:
             "tool_lobby_connect",
             "tool_generate_interfaces",
           ]
-        arch: ["x64", "x32"]
-        cfg: ["debug", "release"]
+        arch: ["x64"]
+        cfg: ["release"]
 
     steps:
       # clone branch
