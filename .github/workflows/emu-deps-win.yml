@@ -36,6 +36,10 @@ jobs:
         if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
 
+      - name: "Setup MSBuild"
+        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
+        uses: microsoft/setup-msbuild@v2
+
       - name: "Clone third-party deps (common/win)"
         if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
