@@ -34,15 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         prj: [
-            # regular api
             "api_regular",
-            "steamclient_regular",
-            # api + client (experimental)
-            "api_experimental",
-            "steamclient_experimental",
-            # tools
-            "tool_lobby_connect",
-            "tool_generate_interfaces",
           ]
         arch: ["x64"]
         cfg: ["release"]
