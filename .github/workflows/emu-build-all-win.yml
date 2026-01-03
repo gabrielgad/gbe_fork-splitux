@@ -37,7 +37,7 @@ jobs:
         shell: cmd
         run: |
           if not exist "build\deps\win" mkdir "build\deps\win"
-          if exist "build\deps\win\vs2022" rmdir "build\deps\win\vs2022"
+          if exist "build\deps\win\vs2022" rmdir /s /q "build\deps\win\vs2022"
           mklink /J "build\deps\win\vs2022" "%LOCAL_DEPS_DIR%\vs2022"
           echo Linked deps from %LOCAL_DEPS_DIR%
 
