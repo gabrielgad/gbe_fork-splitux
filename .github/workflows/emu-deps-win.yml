@@ -2,19 +2,15 @@ name: "Emu third-party dependencies (Windows)"
 
 on:
   workflow_call:
-    # needed since it allows this to become a reusable workflow
   workflow_dispatch:
-    # allows manual trigger
 
 permissions:
   contents: "write"
 
 env:
   PREMAKE_ACTION: "vs2022"
-  DEPS_CACHE_KEY: "emu-deps-win"
-  DEPS_CACHE_DIR: "build/deps/win"
-
-  PACKAGE_BASE_DIR: "build/package/win"
+  # Local persistent path for self-hosted runner
+  LOCAL_DEPS_DIR: "C:\\gbe-deps"
   THIRD_PARTY_BASE_DIR: "third-party"
 
 jobs:
@@ -23,55 +19,59 @@ jobs:
     if: ${{ !cancelled() }}
 
     steps:
-      - name: "Lookup cache for deps"
-        id: "emu-deps-cache-step"
-        uses: actions/cache@v4
-        with:
-          key: "${{ env.DEPS_CACHE_KEY }}-${{ env.PREMAKE_ACTION }}"
-          path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
-          lookup-only: true # don't restore cache if found
+      - name: "Check if deps already built locally"
+        id: "local-deps-check"
+        shell: cmd
+        run: |
+          if exist "%LOCAL_DEPS_DIR%\vs2022\release\x64" (
+            echo deps_exist=true >> %GITHUB_OUTPUT%
+            echo Deps already exist at %LOCAL_DEPS_DIR%
+          ) else (
+            echo deps_exist=false >> %GITHUB_OUTPUT%
+            echo Deps not found, will build
+          )
 
-      # we need branch because it has build scripts
       - name: "Checkout branch"
-        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
         uses: actions/checkout@v4
 
       - name: "Setup MSBuild"
-        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
         uses: microsoft/setup-msbuild@v2
 
       - name: "Clone third-party deps (common/win)"
-        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
         uses: actions/checkout@v4
         with:
           ref: "third-party/common/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/common/win"
 
       - name: "Clone third-party deps (deps/win)"
-        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
         uses: actions/checkout@v4
         with:
           ref: "third-party/deps/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/win"
 
       - name: "Clone third-party deps (deps/common)"
-        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
         uses: actions/checkout@v4
         with:
           ref: "third-party/deps/common"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/common"
 
-      - name: "Clone third-party deps (common/win)"
-        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: "third-party/common/win"
-          path: "${{env.THIRD_PARTY_BASE_DIR}}/common/win"
-
       - name: "Build deps"
-        if: steps.emu-deps-cache-step.outputs.cache-hit != 'true'
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
         shell: cmd
         working-directory: "${{ github.workspace }}"
         run: |
           set "CMAKE_GENERATOR=Visual Studio 17 2022"
-          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5-deps.lua --64-build --32-build --all-ext --all-build --j=2 --verbose --clean --os=windows vs2022
+          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5-deps.lua --64-build --32-build --all-ext --all-build --j=2 --verbose --os=windows vs2022
+
+      - name: "Copy deps to local cache"
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
+        shell: cmd
+        run: |
+          if not exist "%LOCAL_DEPS_DIR%" mkdir "%LOCAL_DEPS_DIR%"
+          xcopy /E /I /Y "build\deps\win\vs2022" "%LOCAL_DEPS_DIR%\vs2022"
+          echo Deps cached to %LOCAL_DEPS_DIR%

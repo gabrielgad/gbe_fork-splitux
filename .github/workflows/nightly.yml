@@ -78,7 +78,7 @@ jobs:
   # Package and release Linux
   emu-linux-prep:
     needs: ["emu-linux-all"]
-    runs-on: "ubuntu-22.04"
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: "Checkout branch"
         uses: actions/checkout@v4
@@ -96,22 +96,8 @@ jobs:
           pattern: "emu-linux-*-${{ github.sha }}"
           merge-multiple: true
 
-      - name: "Give all permissions to repo folder"
-        shell: "bash"
-        working-directory: "${{ github.workspace }}"
-        run: sudo chmod -R 777 "${{ github.workspace }}" && sudo chmod 777 package_linux.sh
-
       - name: "Print files"
-        shell: "bash"
-        working-directory: "${{ github.workspace }}"
-        run: |
-          ls -la build/linux/*/*
-
-      - name: "Download required Ubuntu packages"
-        shell: "bash"
-        run: |
-          sudo apt update || exit 1
-          sudo apt install tar -y || exit 1
+        run: ls -la build/linux/*/*
 
       - name: "Package build (release)"
         shell: "bash"

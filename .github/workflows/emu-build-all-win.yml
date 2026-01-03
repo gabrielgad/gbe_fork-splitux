@@ -2,18 +2,14 @@ name: "Build emu (Windows)"
 
 on:
   workflow_call:
-    # needed since it allows this to become a reusable workflow
   workflow_dispatch:
-    # allows manual trigger
 
 permissions:
   contents: "write"
 
 env:
   PREMAKE_ACTION: "vs2022"
-  DEPS_CACHE_KEY: "emu-deps-win"
-  DEPS_CACHE_DIR: "build/deps/win"
-
+  LOCAL_DEPS_DIR: "C:\\gbe-deps"
   THIRD_PARTY_BASE_DIR: "third-party"
 
 jobs:
@@ -22,39 +18,29 @@ jobs:
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-deps-win.yml"
 
-  builds-matrix-win:
-    name: "build"
+  build-all-win:
+    name: "build-all"
     needs: ["deps"]
     runs-on: [self-hosted, windows, x64]
     if: ${{ !cancelled() }}
-    continue-on-error: true
-
-    strategy:
-      fail-fast: false
-      matrix:
-        prj: [
-            "api_regular",
-            "lib_steamnetworkingsockets",
-          ]
-        arch: ["x64", "Win32"]
-        cfg: ["release"]
 
     steps:
       - name: "Checkout branch"
         uses: actions/checkout@v4
+        with:
+          clean: false  # Preserve build artifacts between runs
 
       - name: "Setup MSBuild"
         uses: microsoft/setup-msbuild@v2
 
-      # deps
-      - name: "Restore deps"
-        id: "emu-deps-cache-step"
-        uses: actions/cache@v4
-        with:
-          key: "${{ env.DEPS_CACHE_KEY }}-${{ env.PREMAKE_ACTION }}"
-          path: "${{ env.DEPS_CACHE_DIR }}/${{ env.PREMAKE_ACTION }}"
+      - name: "Link local deps"
+        shell: cmd
+        run: |
+          if not exist "build\deps\win" mkdir "build\deps\win"
+          if exist "build\deps\win\vs2022" rmdir "build\deps\win\vs2022"
+          mklink /J "build\deps\win\vs2022" "%LOCAL_DEPS_DIR%\vs2022"
+          echo Linked deps from %LOCAL_DEPS_DIR%
 
-      # extra helpers/tools, these are not built inside the deps build dir
       - name: "Clone third-party build helpers (common/win)"
         uses: actions/checkout@v4
         with:
@@ -73,18 +59,31 @@ jobs:
         run: |
           "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2022
 
-      - name: "Build target"
+      - name: "Build api_regular x64"
         shell: cmd
         working-directory: "${{ github.workspace }}/build/project/vs2022/win"
-        run: |
-          msbuild /nologo /target:${{ matrix.prj }} /m:2 /v:n /p:Configuration=${{ matrix.cfg }},Platform=${{ matrix.arch }} gbe.sln
+        run: msbuild /nologo /t:api_regular /m /v:m /p:Configuration=release,Platform=x64 gbe.sln
 
-      # upload artifact/package to github Actions
-      - name: "Upload target package"
+      - name: "Build api_regular Win32"
+        shell: cmd
+        working-directory: "${{ github.workspace }}/build/project/vs2022/win"
+        run: msbuild /nologo /t:api_regular /m /v:m /p:Configuration=release,Platform=Win32 gbe.sln
+
+      - name: "Build lib_steamnetworkingsockets x64"
+        shell: cmd
+        working-directory: "${{ github.workspace }}/build/project/vs2022/win"
+        run: msbuild /nologo /t:lib_steamnetworkingsockets /m /v:m /p:Configuration=release,Platform=x64 gbe.sln
+
+      - name: "Build lib_steamnetworkingsockets Win32"
+        shell: cmd
+        working-directory: "${{ github.workspace }}/build/project/vs2022/win"
+        run: msbuild /nologo /t:lib_steamnetworkingsockets /m /v:m /p:Configuration=release,Platform=Win32 gbe.sln
+
+      - name: "Upload release package"
         uses: actions/upload-artifact@v4
         with:
-          name: "emu-win-${{ matrix.prj }}-${{ matrix.cfg }}-${{ matrix.arch }}-${{ github.sha }}"
+          name: "emu-win-release-${{ github.sha }}"
           path: "build/win"
           if-no-files-found: "error"
-          compression-level: 9
+          compression-level: 6
           retention-days: 1
