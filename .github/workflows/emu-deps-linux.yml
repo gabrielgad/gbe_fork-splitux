@@ -21,7 +21,7 @@ jobs:
       - name: "Check if deps already built locally"
         id: "local-deps-check"
         run: |
-          if [ -d "$LOCAL_DEPS_DIR/gmake2/release/x64" ]; then
+          if [ -d "$LOCAL_DEPS_DIR/gmake2/protobuf/install64" ]; then
             echo "deps_exist=true" >> $GITHUB_OUTPUT
             echo "Deps already exist at $LOCAL_DEPS_DIR"
           else
