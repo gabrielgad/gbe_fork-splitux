@@ -2,166 +2,56 @@ name: "Nightly Release"
 
 on:
   schedule:
-    # Run every day at midnight UTC
     - cron: '0 0 * * *'
   workflow_dispatch:
-    # Allow manual trigger for testing
 
 permissions:
   contents: "write"
 
-env:
-  THIRD_PARTY_BASE_DIR: "third-party"
-
 jobs:
-  # Build Windows
-  emu-win-all:
-    name: "Emu win all"
-    if: ${{ !cancelled() }}
-    uses: "./.github/workflows/emu-build-all-win.yml"
-
-  # Build Linux
-  emu-linux-all:
-    name: "Emu linux all"
-    if: ${{ !cancelled() }}
-    uses: "./.github/workflows/emu-build-all-linux.yml"
-
-  # Package and release Windows
-  emu-win-prep:
-    needs: ["emu-win-all"]
-    runs-on: [self-hosted, windows, x64]
-    steps:
-      - name: "Ensure LF line ending"
-        shell: "cmd"
-        working-directory: "${{ github.workspace }}"
-        run: |
-          git config --local core.autocrlf false
-          git config --system core.autocrlf false
-          git config --global core.autocrlf false
-
-      - name: "Checkout branch"
-        uses: actions/checkout@v4
-
-      - name: "Clone third-party deps (deps/win)"
-        uses: actions/checkout@v4
-        with:
-          ref: "third-party/deps/win"
-          path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/win"
-
-      - name: "Download emu build artifacts (Win)"
-        uses: actions/download-artifact@v4
-        with:
-          path: "build/win"
-          pattern: "emu-win-*-${{ github.sha }}"
-          merge-multiple: true
-
-      - name: "Print files"
-        shell: "cmd"
-        working-directory: "${{ github.workspace }}"
-        run: |
-          dir /s /b /a:-d build\win
-
-      - name: "Package build (release)"
-        shell: "cmd"
-        working-directory: "${{ github.workspace }}"
-        run: package_win.bat vs2022\release
-
-      - name: "Upload Windows release package"
-        uses: actions/upload-artifact@v4
-        with:
-          name: "nightly-emu-win-release"
-          path: "build/package/win/vs2022/*release*"
-          if-no-files-found: "error"
-          compression-level: 0
-          retention-days: 1
-
-  # Package and release Linux
-  emu-linux-prep:
-    needs: ["emu-linux-all"]
-    runs-on: [self-hosted, Linux, X64]
-    steps:
-      - name: "Checkout branch"
-        uses: actions/checkout@v4
-
-      - name: "Clone third-party deps (deps/linux)"
-        uses: actions/checkout@v4
-        with:
-          ref: "third-party/deps/linux"
-          path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/linux"
-
-      - name: "Download emu build artifacts (linux)"
-        uses: actions/download-artifact@v4
-        with:
-          path: "build/linux"
-          pattern: "emu-linux-*-${{ github.sha }}"
-          merge-multiple: true
-
-      - name: "Print files"
-        run: ls -la build/linux/*/*
-
-      - name: "Package build (release)"
-        shell: "bash"
-        working-directory: "${{ github.workspace }}"
-        run: ./package_linux.sh gmake2/release
-
-      - name: "Upload Linux release package"
-        uses: actions/upload-artifact@v4
-        with:
-          name: "nightly-emu-linux-release"
-          path: "build/package/linux/gmake2/*release*"
-          if-no-files-found: "error"
-          compression-level: 0
-          retention-days: 1
-
-  # Create/update nightly release
-  create-nightly-release:
-    needs: ["emu-win-prep", "emu-linux-prep"]
+  # Delete existing nightly release first
+  cleanup-nightly:
+    name: "Cleanup existing nightly"
     runs-on: "ubuntu-22.04"
     steps:
-      - name: "Download Windows artifacts"
-        uses: actions/download-artifact@v4
-        with:
-          name: "nightly-emu-win-release"
-          path: "artifacts/win"
-
-      - name: "Download Linux artifacts"
-        uses: actions/download-artifact@v4
-        with:
-          name: "nightly-emu-linux-release"
-          path: "artifacts/linux"
-
-      - name: "List artifacts"
-        run: |
-          echo "=== Windows ==="
-          ls -la artifacts/win/
-          echo "=== Linux ==="
-          ls -la artifacts/linux/
-
       - name: "Delete existing nightly release"
-        uses: dev-drprasad/delete-tag-and-release@v1.1
-        with:
-          tag_name: "nightly"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          delete_release: true
-        continue-on-error: true
+        run: |
+          gh release delete nightly --yes --repo ${{ github.repository }} || true
+          gh api -X DELETE repos/${{ github.repository }}/git/refs/tags/nightly || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Create nightly release"
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "nightly"
-          name: "Nightly Build"
-          body: |
-            Automatic nightly build from `dev` branch.
+  # Build Linux - creates the release and uploads Linux build
+  emu-linux-all:
+    name: "Emu linux all"
+    needs: ["cleanup-nightly"]
+    uses: "./.github/workflows/emu-build-all-linux.yml"
+    with:
+      release_tag: "nightly"
+      prerelease: true
 
-            **Built:** ${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
-            **Commit:** ${{ github.sha }}
+  # Build Windows - appends Windows build to the release
+  emu-win-all:
+    name: "Emu win all"
+    needs: ["emu-linux-all"]
+    uses: "./.github/workflows/emu-build-all-win.yml"
+    with:
+      release_tag: "nightly"
+      prerelease: true
 
-            ⚠️ This is an automated build and may be unstable.
-            For stable releases, use tagged versions.
+  # Build migrate_gse scripts
+  migrate_gse-linux:
+    name: "Migrate GSE linux"
+    needs: ["emu-win-all"]
+    uses: "./.github/workflows/migrate_gse-build-linux.yml"
+    with:
+      release_tag: "nightly"
+      prerelease: true
 
-            ## Includes
-            - `steamnetworkingsockets` library for games using GameNetworkingSockets.dll
-          prerelease: true
-          files: |
-            artifacts/win/*
-            artifacts/linux/*
+  migrate_gse-win:
+    name: "Migrate GSE win"
+    needs: ["migrate_gse-linux"]
+    uses: "./.github/workflows/migrate_gse-build-win.yml"
+    with:
+      release_tag: "nightly"
+      prerelease: true

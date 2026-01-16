@@ -2,18 +2,34 @@ name: "Build migrate_gse script (Windows)"
 
 on:
   workflow_call:
-    # needed since it allows this to become a reusable workflow
+    inputs:
+      release_tag:
+        description: "Tag name for the release (e.g., 'nightly' or 'release-1.0.0')"
+        required: false
+        type: string
+      prerelease:
+        description: "Whether this is a prerelease"
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
-    # allows manual trigger
+    inputs:
+      release_tag:
+        description: "Tag name for the release (leave empty for no release)"
+        required: false
+        type: string
+      prerelease:
+        description: "Whether this is a prerelease"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: "write"
 
 env:
-  ARTIFACT_NAME: "migrate_gse-win-${{ github.sha }}"
   SCRIPT_BASE_DIR: "tools/migrate_gse"
   PACKAGE_BASE_DIR: "tools/migrate_gse/bin/win"
-
   THIRD_PARTY_BASE_DIR: "third-party"
 
 jobs:
@@ -41,12 +57,26 @@ jobs:
         working-directory: "${{ env.SCRIPT_BASE_DIR }}"
         run: rebuild_win.bat
 
-      # upload artifact
-      - name: "Upload build package"
-        uses: actions/upload-artifact@v4
+      # package
+      - name: "Package script"
+        shell: cmd
+        working-directory: "${{ env.SCRIPT_BASE_DIR }}"
+        run: package_win.bat
+
+      - name: "List packaged files"
+        shell: cmd
+        run: |
+          echo === Packaged files ===
+          dir tools\migrate_gse\bin\package\win\ 2>nul || echo No packaged files found
+
+      # upload to release
+      - name: "Upload to Release"
+        if: inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
         with:
-          name: "${{ env.ARTIFACT_NAME }}"
-          path: "${{ env.PACKAGE_BASE_DIR }}/"
-          if-no-files-found: "error"
-          compression-level: 9
-          retention-days: 1
+          tag_name: ${{ inputs.release_tag }}
+          prerelease: ${{ inputs.prerelease }}
+          files: tools/migrate_gse/bin/package/win/**/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

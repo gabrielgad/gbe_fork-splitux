@@ -2,15 +2,32 @@ name: "Build migrate_gse script (Linux)"
 
 on:
   workflow_call:
-    # needed since it allows this to become a reusable workflow
+    inputs:
+      release_tag:
+        description: "Tag name for the release (e.g., 'nightly' or 'release-1.0.0')"
+        required: false
+        type: string
+      prerelease:
+        description: "Whether this is a prerelease"
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
-    # allows manual trigger
+    inputs:
+      release_tag:
+        description: "Tag name for the release (leave empty for no release)"
+        required: false
+        type: string
+      prerelease:
+        description: "Whether this is a prerelease"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: "write"
 
 env:
-  ARTIFACT_NAME: "migrate_gse-linux-${{ github.sha }}"
   SCRIPT_BASE_DIR: "tools/migrate_gse"
   PACKAGE_BASE_DIR: "tools/migrate_gse/bin/linux"
 
@@ -41,12 +58,25 @@ jobs:
         working-directory: "${{ env.SCRIPT_BASE_DIR }}"
         run: sudo chmod 777 rebuild_linux.sh && ./rebuild_linux.sh
 
-      # upload artifact
-      - name: "Upload build package"
-        uses: actions/upload-artifact@v4
+      # package
+      - name: "Package script"
+        shell: "bash"
+        working-directory: "${{ env.SCRIPT_BASE_DIR }}"
+        run: sudo chmod 777 package_linux.sh && sudo ./package_linux.sh
+
+      - name: "List packaged files"
+        run: |
+          echo "=== Packaged files ==="
+          ls -la tools/migrate_gse/bin/package/linux/ || echo "No packaged files found"
+
+      # upload to release
+      - name: "Upload to Release"
+        if: inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
         with:
-          name: "${{ env.ARTIFACT_NAME }}"
-          path: "${{ env.PACKAGE_BASE_DIR }}/"
-          if-no-files-found: "error"
-          compression-level: 9
-          retention-days: 1
+          tag_name: ${{ inputs.release_tag }}
+          prerelease: ${{ inputs.prerelease }}
+          files: tools/migrate_gse/bin/package/linux/**/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

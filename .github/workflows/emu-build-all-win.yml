@@ -2,7 +2,27 @@ name: "Build emu (Windows)"
 
 on:
   workflow_call:
+    inputs:
+      release_tag:
+        description: "Tag name for the release (e.g., 'nightly' or 'release-1.0.0')"
+        required: false
+        type: string
+      prerelease:
+        description: "Whether this is a prerelease"
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag name for the release (leave empty for no release)"
+        required: false
+        type: string
+      prerelease:
+        description: "Whether this is a prerelease"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: "write"
@@ -18,8 +38,8 @@ jobs:
     if: ${{ !cancelled() }}
     uses: "./.github/workflows/emu-deps-win.yml"
 
-  build-all-win:
-    name: "build-all"
+  build-and-release:
+    name: "Build, package, and release"
     needs: ["deps"]
     runs-on: [self-hosted, windows, x64, gbe-build]
     if: ${{ !cancelled() }}
@@ -28,7 +48,7 @@ jobs:
       - name: "Checkout branch"
         uses: actions/checkout@v4
         with:
-          clean: false  # Preserve build artifacts between runs
+          clean: false
 
       - name: "Setup MSBuild"
         uses: microsoft/setup-msbuild@v2
@@ -53,37 +73,55 @@ jobs:
           ref: "third-party/build/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
 
+      - name: "Clone third-party deps (deps/win)"
+        uses: actions/checkout@v4
+        with:
+          ref: "third-party/deps/win"
+          path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/win"
+
       - name: "Generate project files"
         shell: cmd
         working-directory: "${{ github.workspace }}"
         run: |
           "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2022
 
-      - name: "Build api_regular x64"
+      - name: "Build all targets"
         shell: cmd
         working-directory: "${{ github.workspace }}/build/project/vs2022/win"
-        run: msbuild /nologo /t:api_regular /m /v:m /p:Configuration=release,Platform=x64 gbe.sln
+        run: |
+          @echo off
+          setlocal enabledelayedexpansion
 
-      - name: "Build api_regular Win32"
+          for %%P in (api_regular api_experimental steamclient_experimental_stub steamclient_experimental steamclient_experimental_loader steamclient_experimental_extra lib_game_overlay_renderer lib_steamnetworkingsockets tool_lobby_connect tool_generate_interfaces) do (
+            for %%A in (x64 Win32) do (
+              echo === Building %%P (%%A, release) ===
+              msbuild /nologo /t:%%P /m /v:m /p:Configuration=release,Platform=%%A gbe.sln
+              if errorlevel 1 echo Warning: %%P %%A release build failed
+            )
+          )
+
+          echo === Building lib_steam_old (Win32 only) ===
+          msbuild /nologo /t:lib_steam_old /m /v:m /p:Configuration=release,Platform=Win32 gbe.sln
+          if errorlevel 1 echo Warning: lib_steam_old Win32 release build failed
+
+      - name: "Package build (release)"
         shell: cmd
-        working-directory: "${{ github.workspace }}/build/project/vs2022/win"
-        run: msbuild /nologo /t:api_regular /m /v:m /p:Configuration=release,Platform=Win32 gbe.sln
+        working-directory: "${{ github.workspace }}"
+        run: package_win.bat vs2022\release
 
-      - name: "Build lib_steamnetworkingsockets x64"
+      - name: "List packaged files"
         shell: cmd
-        working-directory: "${{ github.workspace }}/build/project/vs2022/win"
-        run: msbuild /nologo /t:lib_steamnetworkingsockets /m /v:m /p:Configuration=release,Platform=x64 gbe.sln
+        run: |
+          echo === Packaged files ===
+          dir build\package\win\vs2022\ 2>nul || echo No packaged files found
 
-      - name: "Build lib_steamnetworkingsockets Win32"
-        shell: cmd
-        working-directory: "${{ github.workspace }}/build/project/vs2022/win"
-        run: msbuild /nologo /t:lib_steamnetworkingsockets /m /v:m /p:Configuration=release,Platform=Win32 gbe.sln
-
-      - name: "Upload release package"
-        uses: actions/upload-artifact@v4
+      - name: "Upload to Release"
+        if: inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
         with:
-          name: "emu-win-release-${{ github.sha }}"
-          path: "build/win"
-          if-no-files-found: "error"
-          compression-level: 6
-          retention-days: 1
+          tag_name: ${{ inputs.release_tag }}
+          prerelease: ${{ inputs.prerelease }}
+          files: build/package/win/vs2022/*release*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
