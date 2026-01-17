@@ -47,6 +47,12 @@ jobs:
           ref: "third-party/build/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
 
+      - name: "Clone third-party deps (deps/win)"
+        uses: actions/checkout@v4
+        with:
+          ref: "third-party/deps/win"
+          path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/win"
+
       - name: "Add Python to PATH"
         shell: pwsh
         run: |
