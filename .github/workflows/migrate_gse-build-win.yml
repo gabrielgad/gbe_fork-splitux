@@ -34,7 +34,7 @@ env:
 
 jobs:
   build:
-    runs-on: [self-hosted, windows, x64]
+    runs-on: [self-hosted, windows, x64, gbe-build]
 
     steps:
       - name: "Checkout branch"
@@ -46,6 +46,11 @@ jobs:
         with:
           ref: "third-party/build/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
+
+      - name: "Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: "Install env"
         shell: cmd
