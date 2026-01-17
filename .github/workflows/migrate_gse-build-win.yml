@@ -47,10 +47,15 @@ jobs:
           ref: "third-party/build/win"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/build/win"
 
-      - name: "Setup Python"
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: "Add Python to PATH"
+        shell: pwsh
+        run: |
+          echo "C:\Python312" | Out-File -FilePath $env:GITHUB_PATH -Append
+          echo "C:\Python312\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: "Verify Python"
+        shell: cmd
+        run: python --version
 
       - name: "Install env"
         shell: cmd
