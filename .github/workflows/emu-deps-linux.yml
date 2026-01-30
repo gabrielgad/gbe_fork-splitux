@@ -14,7 +14,7 @@ env:
 
 jobs:
   deps-build:
-    runs-on: [self-hosted, Linux, X64, gbe-build]
+    runs-on: [self-hosted, Linux, X64, splitux]
     if: ${{ !cancelled() }}
 
     steps:
