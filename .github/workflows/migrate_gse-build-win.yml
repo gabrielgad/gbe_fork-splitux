@@ -34,7 +34,7 @@ env:
 
 jobs:
   build:
-    runs-on: [self-hosted, windows, x64, gbe-build]
+    runs-on: [self-hosted, Windows, X64, splitux]
 
     steps:
       - name: "Checkout branch"
