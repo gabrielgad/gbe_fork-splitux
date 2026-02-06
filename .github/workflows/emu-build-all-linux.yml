@@ -87,7 +87,7 @@ jobs:
           for prj in api_regular steamclient_regular api_experimental steamclient_experimental tool_lobby_connect tool_generate_interfaces; do
             for arch in x64 x32; do
               echo "=== Building $prj ($arch, release) ==="
-              make -j$(nproc) config=release_$arch $prj || echo "Warning: $prj $arch release build failed"
+              make -j4 config=release_$arch $prj || echo "Warning: $prj $arch release build failed"
             done
           done
 
