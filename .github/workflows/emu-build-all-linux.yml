@@ -75,10 +75,21 @@ jobs:
           ref: "third-party/deps/linux"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/linux"
 
+      - name: "Install premake5"
+        working-directory: "${{ github.workspace }}"
+        env:
+          PREMAKE_VERSION: "5.0.0-beta8"
+        run: |
+          mkdir -p ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake
+          rm -f ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
+          curl -sSL "https://github.com/premake/premake-core/releases/download/v${PREMAKE_VERSION}/premake-${PREMAKE_VERSION}-linux.tar.gz" \
+            | tar xz -C ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake premake5
+          chmod +x ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --version
+
       - name: "Generate project files"
         working-directory: "${{ github.workspace }}"
         run: |
-          chmod +x ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
           ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --genproto --emubuild=${{ github.sha }} --os=linux gmake
 
       - name: "Build all targets"
