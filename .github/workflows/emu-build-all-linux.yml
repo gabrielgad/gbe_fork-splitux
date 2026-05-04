@@ -92,7 +92,7 @@ jobs:
         run: |
           mkdir -p proto_gen/linux
           PROTOC=build/deps/linux/gmake/protobuf/install64/bin/protoc
-          chmod +x "$PROTOC"
+          [ -x "$PROTOC" ] || chmod +x "$PROTOC" 2>/dev/null || true
           "$PROTOC" dll/net.proto -I./dll/ --cpp_out=proto_gen/linux
 
       - name: "Generate project files"
