@@ -87,10 +87,18 @@ jobs:
           chmod +x ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
           ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --version
 
+      - name: "Generate protobuf code"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          mkdir -p proto_gen/linux
+          PROTOC=build/deps/linux/gmake/protobuf/install64/bin/protoc
+          chmod +x "$PROTOC"
+          "$PROTOC" dll/net.proto -I./dll/ --cpp_out=proto_gen/linux
+
       - name: "Generate project files"
         working-directory: "${{ github.workspace }}"
         run: |
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --genproto --emubuild=${{ github.sha }} --os=linux gmake
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --emubuild=${{ github.sha }} --os=linux gmake
 
       - name: "Build all targets"
         working-directory: "${{ github.workspace }}/build/project/gmake/linux"
