@@ -4,6 +4,7 @@
 #include "dll/base.h"
 #include <map>
 #include <queue>
+#include <deque>
 
 #ifdef EMU_OVERLAY
 
@@ -92,6 +93,14 @@ struct Notification
     std::optional<Overlay_Achievement> ach{};
 };
 
+// Lightweight archive entry -- no pointers, no GPU resources, safe to store long-term
+struct NotificationHistoryEntry
+{
+    std::chrono::milliseconds timestamp{};
+    uint8 type{};
+    std::string message{};
+};
+
 // notification coordinates { x, y }
 struct NotificationsCoords
 {
@@ -145,8 +154,24 @@ class Steam_Overlay
     // Callback infos
     std::queue<Friend> has_friend_action{};
     std::vector<Notification> notifications{};
+    static constexpr size_t MAX_NOTIFICATION_HISTORY = 50;
+    std::deque<NotificationHistoryEntry> notification_history{};
+    bool show_notification_history = false;
+    // Cache for pre-formatted history lines — avoids rebuilding every frame
+    std::vector<std::string> notification_history_cache{};
+    bool notification_history_cache_dirty = false;
     // used when the button "Invite all" is clicked
     std::atomic<bool> invite_all_friends_clicked = false;
+
+    // Rate-limiting queue for achievement notifications
+    struct ScheduledAchievement {
+        Overlay_Achievement ach;
+        bool for_progress;
+        std::chrono::milliseconds trigger_time; // when the achievement was triggered
+        std::chrono::milliseconds scheduled_show_time; // when the notification should be shown
+    };
+    std::deque<ScheduledAchievement> achievement_queue{};
+    std::chrono::milliseconds last_scheduled_show_time{}; // tracks the last scheduled show time for spacing
 
     bool overlay_state_changed = false;
 
@@ -167,10 +192,15 @@ class Steam_Overlay
     common_helpers::KillableWorker renderer_hook_init_thread{};
     int renderer_hook_timeout_ctr{};
 
-    // font stuff
+    std::vector<InGameOverlay::ToggleKey> toggle_keys{};
+
+    // font stuff - now supporting independent font sizes
     ImFontAtlas fonts_atlas{};
     ImFont *font_default{};
     ImFont *font_notif{};
+    ImFont *font_fps{}; // separate font for FPS display
+    ImFont *font_ach_title{}; // separate font for achievement title
+    ImFont *font_ach_desc{}; // separate font for achievement description
     ImFontConfig font_cfg{};
     ImFontGlyphRangesBuilder font_builder{};
     ImVector<ImWchar> ranges{};
@@ -188,6 +218,7 @@ class Steam_Overlay
     Steam_Overlay& operator=(Steam_Overlay const&) = delete;
     Steam_Overlay& operator=(Steam_Overlay&&) = delete;
 
+    void parse_key_combo();
     bool submit_notification(
         notification_type type,
         const std::string &msg,
@@ -284,6 +315,9 @@ public:
     void FriendDisconnect(Friend _friend);
 
     void AddAchievementNotification(const std::string &ach_name, nlohmann::json const& ach, bool for_progress);
+
+    // Rate-limiting queue functions
+    void process_achievement_queue();
 };
 
 #else // EMU_OVERLAY
@@ -318,6 +352,7 @@ public:
     void FriendDisconnect(Friend _friend) {}
 
     void AddAchievementNotification(const std::string &ach_name, nlohmann::json const& ach, bool for_progress) {}
+    void process_achievement_queue() {}
 };
 
 #endif // EMU_OVERLAY
