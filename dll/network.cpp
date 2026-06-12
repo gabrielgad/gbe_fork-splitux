@@ -1238,6 +1238,36 @@ bool Networking::sendTo(Common_Message *msg, bool reliable, Connection *conn)
     return ret;
 }
 
+bool Networking::sendToAllWithID(Common_Message *msg, bool reliable)
+{
+    if (!enabled) return false;
+
+    CSteamID dest_id((uint64)msg->dest_id());
+    bool ret = false;
+
+    // Deliver to ourselves if we also hold the dest id (loopback path).
+    if (std::find(ids.begin(), ids.end(), dest_id) != ids.end()) {
+        local_send.push_back(*msg);
+        ret = true;
+    }
+
+    // Deliver to EVERY connection that holds the dest id, not just the first.
+    // Multiple local processes can share one Steam account (bootstrap launcher
+    // exe + shipping game exe); the one owning the P2P socket handles it, the
+    // rest drop it on socket lookup.
+    for (auto &conn : connections) {
+        for (const auto &id : conn.ids) {
+            if (id == dest_id) {
+                sendTo(msg, reliable, &conn);
+                ret = true;
+                break;
+            }
+        }
+    }
+
+    return ret;
+}
+
 bool Networking::sendToAllIndividuals(Common_Message *msg, bool reliable)
 {
     for (auto &conn: connections) {

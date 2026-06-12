@@ -147,7 +147,17 @@ public:
 
     // send to a specific user, set_dest_id() must be called
     bool sendTo(Common_Message *msg, bool reliable, Connection *conn = NULL);
-    
+
+    // send to EVERY connection that matches msg->dest_id() (not just the first).
+    // Needed when multiple local processes share one Steam account (e.g. a
+    // bootstrap launcher exe + the shipping game exe both loading steam_api):
+    // P2P connection-establishment + DATA messages are addressed by Steam ID,
+    // and routing to a single connection delivers them to the wrong process,
+    // which has no matching socket and silently drops them. Delivering to all
+    // matching connections lets the process that owns the socket handle it;
+    // the others ignore it (their socket lookup fails).
+    bool sendToAllWithID(Common_Message *msg, bool reliable);
+
     // send to all users whose account type is Individual, no need to call set_dest_id(), this is done automatically
     bool sendToAllIndividuals(Common_Message *msg, bool reliable);
 

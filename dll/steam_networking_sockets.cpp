@@ -136,7 +136,10 @@ bool Steam_Networking_Sockets::send_packet_new_connection(HSteamNetConnection m_
     uint64_t steam_id = connect_socket->second.remote_identity.GetSteamID64();
     if (steam_id) {
         msg.set_dest_id(steam_id);
-        return network->sendTo(&msg, true);
+        // sendToAllWithID: a peer Steam account may map to several local
+        // connections (bootstrap + shipping exe). Route the REQUEST/ACCEPTED to
+        // all of them so the process owning the socket actually receives it.
+        return network->sendToAllWithID(&msg, true);
     }
 
     const SteamNetworkingIPAddr *ip_addr = connect_socket->second.remote_identity.GetIPAddr();
@@ -575,7 +578,7 @@ bool Steam_Networking_Sockets::CloseConnection( HSteamNetConnection hPeer, int n
         msg.mutable_networking_sockets()->set_real_port(connect_socket->second.real_port);
         msg.mutable_networking_sockets()->set_connection_id_from(connect_socket->first);
         msg.mutable_networking_sockets()->set_connection_id(connect_socket->second.remote_id);
-        network->sendTo(&msg, true);
+        network->sendToAllWithID(&msg, true);
     }
 
     sbcs->connect_sockets.erase(connect_socket);
@@ -766,7 +769,7 @@ EResult Steam_Networking_Sockets::SendMessageToConnection( HSteamNetConnection h
 
     bool reliable = false;
     if (nSendFlags & k_nSteamNetworkingSend_Reliable) reliable = true;
-    if (network->sendTo(&msg, reliable)) {
+    if (network->sendToAllWithID(&msg, reliable)) {
         if (pOutMessageNumber) *pOutMessageNumber = message_number;
         return k_EResultOK;
     }
@@ -847,7 +850,7 @@ void Steam_Networking_Sockets::SendMessages( int nMessages, SteamNetworkingMessa
 
                 bool reliable = false;
                 if (pMessages[i]->m_nFlags & k_nSteamNetworkingSend_Reliable) reliable = true;
-                if (network->sendTo(&msg, reliable)) {
+                if (network->sendToAllWithID(&msg, reliable)) {
                     out_number = message_number;
                     result = k_EResultOK;
                 } else {
