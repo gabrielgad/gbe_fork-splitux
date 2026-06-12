@@ -1,4 +1,4 @@
-require("premake", ">=5.0.0-beta2")
+require("premake", ">=5.0.0-beta8")
 
 
 -- add "-Wl,--whole-archive -Wl,-Bstatic -lmylib -Wl,-Bdynamic -Wl,--no-whole-archive"
@@ -161,6 +161,7 @@ local function genproto()
     local protoc_exe = path.join(deps_dir, 'protobuf', deps_install_prefix, 'bin', 'protoc')
 
     local out_dir = 'proto_gen/' .. os_iden
+    local out_dir_tf2 = out_dir .. "/tf2"
 
     if os.target() == "windows" then
         protoc_exe = protoc_exe .. '.exe'
@@ -178,6 +179,12 @@ local function genproto()
         return
     end
 
+    local ok_mk, err_mk = os.mkdir(out_dir_tf2)
+    if not ok_mk then
+        error("Error: " .. err_mk)
+        return
+    end
+
     if os.target() == "linux" then
         local ok_chmod, err_chmod = os.chmod(protoc_exe, "777")
         if not ok_chmod then
@@ -190,6 +197,12 @@ local function genproto()
         protoc_exe = 'wine ' .. protoc_exe
     end
 
+    if not os.execute(protoc_exe .. ' dll/gc_steam/steammessages.proto -I./dll/gc_steam --cpp_out=' .. out_dir ) then
+        return
+    end
+    if not os.execute(protoc_exe .. ' dll/gc_tf2/*.proto -I./dll/gc_steam -I./dll/gc_tf2 --cpp_out=' .. out_dir_tf2 ) then
+        return
+    end
     return os.execute(protoc_exe .. ' dll/net.proto -I./dll/ --cpp_out=' .. out_dir)
 end
 
@@ -221,6 +234,7 @@ local x32_deps_include = {
     path.join(deps_dir, "mbedtls/install32/include"),
     path.join(deps_dir, "opus/install32/include"),
     path.join(deps_dir, "portaudio/install32/include"),
+    path.join(deps_dir, "sdl/install32/include"),
 }
 
 local x32_deps_overlay_include = {
@@ -237,6 +251,7 @@ local x64_deps_include = {
     path.join(deps_dir, "mbedtls/install64/include"),
     path.join(deps_dir, "opus/install64/include"),
     path.join(deps_dir, "portaudio/install64/include"),
+    path.join(deps_dir, "sdl/install64/include"),
 }
 
 local x64_deps_overlay_include = {
@@ -287,7 +302,12 @@ end
 
 local zlib_archive_name = 'z'
 if os.target() == 'windows' then
-    zlib_archive_name = 'zlibstatic' -- even on MinGw we need this name
+    zlib_archive_name = 'zs' -- even on MinGw we need this name
+end
+
+local sdl_name = 'SDL3'
+if os.target() == 'windows' then
+    sdl_name = 'SDL3-static'
 end
 
 local deps_link = {
@@ -299,13 +319,11 @@ local deps_link = {
     "mbedx509"           .. static_postfix,
     "opus"               .. static_postfix,
     "portaudio"          .. static_postfix,
+    sdl_name             .. static_postfix,
 }
 -- add protobuf libs
 table_append(deps_link, {
-    lib_prefix .. "protobuf-lite"                 .. static_postfix,
-    "absl_bad_any_cast_impl"                      .. static_postfix,
-    "absl_bad_optional_access"                    .. static_postfix,
-    "absl_bad_variant_access"                     .. static_postfix,
+    lib_prefix .. "protobuf"                      .. static_postfix,
     "absl_base"                                   .. static_postfix,
     "absl_city"                                   .. static_postfix,
     "absl_civil_time"                             .. static_postfix,
@@ -344,7 +362,6 @@ table_append(deps_link, {
     "absl_int128"                                 .. static_postfix,
     "absl_kernel_timeout_internal"                .. static_postfix,
     "absl_leak_check"                             .. static_postfix,
-    "absl_log_entry"                              .. static_postfix,
     "absl_log_flags"                              .. static_postfix,
     "absl_log_globals"                            .. static_postfix,
     "absl_log_initialize"                         .. static_postfix,
@@ -367,7 +384,7 @@ table_append(deps_link, {
     "absl_random_distributions"                   .. static_postfix,
     "absl_random_internal_distribution_test_util" .. static_postfix,
     "absl_random_internal_platform"               .. static_postfix,
-    "absl_random_internal_pool_urbg"              .. static_postfix,
+    "absl_random_internal_entropy_pool"           .. static_postfix,
     "absl_random_internal_randen"                 .. static_postfix,
     "absl_random_internal_randen_hwaes"           .. static_postfix,
     "absl_random_internal_randen_hwaes_impl"      .. static_postfix,
@@ -407,6 +424,7 @@ local common_link_win = {
     "Winmm"    .. static_postfix,
     "Bcrypt"   .. static_postfix,
     "Dbghelp"  .. static_postfix,
+    "ntdll"    .. static_postfix,
     -- gamepad
     "Xinput"   .. static_postfix,
     -- imgui / overlay
@@ -452,6 +470,7 @@ local x32_deps_libdir = {
     path.join(deps_dir, "mbedtls/install32/lib"),
     path.join(deps_dir, "opus/install32/lib"),
     path.join(deps_dir, "portaudio/install32/lib"),
+    path.join(deps_dir, "sdl/install32/lib"),
 }
 
 local x32_deps_overlay_libdir = {
@@ -469,6 +488,7 @@ local x64_deps_libdir = {
     path.join(deps_dir, "ingame_overlay/install64/lib"),
     path.join(deps_dir, "opus/install64/lib"),
     path.join(deps_dir, "portaudio/install64/lib"),
+    path.join(deps_dir, "sdl/install64/lib"),
 }
 
 local x64_deps_overlay_libdir = {
@@ -508,7 +528,7 @@ end
 
 filter {} -- reset the filter and remove all active keywords
 configurations { "debug", "release", }
-platforms { "x64", "x32", }
+platforms { "x64", "x86", }
 language "C++"
 cppdialect "C++17"
 cdialect "C17"
@@ -518,11 +538,9 @@ filter {} -- reset the filter and remove all active keywords
 characterset "Unicode"
 staticruntime "on" -- /MT or /MTd
 runtime "Release" -- ensure we never link with /MTd, otherwise deps linking will fail
-flags {
-    "NoPCH", -- no precompiled header on Windows
-    "MultiProcessorCompile", -- /MP "Enable Visual Studio to use multiple compiler processes when building"
-    "RelativeLinks",
-}
+enablepch "Off" -- no precompiled header on Windows
+multiprocessorcompile "On" -- /MP "Enable Visual Studio to use multiple compiler processes when building"
+userelativelinks "On"
 targetprefix "" -- prevent adding the prefix libxxx on linux
 visibility "Hidden" -- hide all symbols by default on GCC (unless they are marked visible)
 linkgroups "On" -- turn off the awful order dependent linking on gcc/clang, causes the linker to go back and forth to find missing symbols
@@ -553,7 +571,7 @@ vpaths { -- just for visual niceness, see: https://premake.github.io/docs/vpaths
 
 -- arch
 ---------
-filter { "platforms:x32", }
+filter { "platforms:x86", }
     architecture "x86" 
 filter { "platforms:x64", }
     architecture "x86_64"
@@ -673,7 +691,7 @@ filter { 'options:incexamples', 'system:not windows', }
     }
 
 -- deps
-filter { 'options:incdeps', "platforms:x32", }
+filter { 'options:incdeps', "platforms:x86", }
     files {
         table_postfix_items(x32_deps_include, '/**.h'),
         table_postfix_items(x32_deps_include, '/**.hxx'),
@@ -719,7 +737,7 @@ filter { "system:windows", "options:dosstub", }
 -- sign
 filter { "system:windows", "options:winsign", }
     postbuildcommands {
-        '"' .. signer_tool .. '" %[%{!cfg.buildtarget.abspath}]',
+        '"' .. signer_tool .. '" %[%{!cfg.buildtarget.directory}%{!cfg.buildtarget.name}]',
     }
 filter {} -- reset the filter and remove all active keywords
 end
@@ -740,7 +758,7 @@ project "api_regular"
 
     -- name
     ---------
-    filter { "system:windows", "platforms:x32", }
+    filter { "system:windows", "platforms:x86", }
         targetname "steam_api"
     filter { "system:windows", "platforms:x64", }
         targetname "steam_api64"
@@ -749,7 +767,7 @@ project "api_regular"
 
 
     -- x32 include dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         includedirs {
             x32_deps_include,
         }
@@ -776,7 +794,7 @@ project "api_regular"
             "dll/wrap.cpp"
         }
     -- Windows x32 common source files
-    filter { "system:windows", "platforms:x32", "options:winrsrc", }
+    filter { "system:windows", "platforms:x86", "options:winrsrc", }
         files {
             "resources/win/api/32/resources.rc"
         }
@@ -805,7 +823,7 @@ project "api_regular"
     -- libs search dir
     ---------
     -- x32 libs search dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         libdirs {
             x32_deps_libdir,
         }
@@ -827,7 +845,7 @@ project "api_experimental"
 
     -- name
     ---------
-    filter { "system:windows", "platforms:x32", }
+    filter { "system:windows", "platforms:x86", }
         targetname "steam_api"
     filter { "system:windows", "platforms:x64", }
         targetname "steam_api64"
@@ -847,7 +865,7 @@ project "api_experimental"
     -- include dir
     ---------
     -- x32 include dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         includedirs {
             x32_deps_include,
             x32_deps_overlay_include,
@@ -871,7 +889,7 @@ project "api_experimental"
         'libs/detours/uimports.cc',
     }
     -- deps
-    filter { 'options:incdeps', "platforms:x32", }
+    filter { 'options:incdeps', "platforms:x86", }
         files {
             table_postfix_items(x32_deps_overlay_include, '/**.h'),
             table_postfix_items(x32_deps_overlay_include, '/**.hxx'),
@@ -889,7 +907,7 @@ project "api_experimental"
             "dll/wrap.cpp"
         }
     -- Windows x32 common source files
-    filter { "system:windows", "platforms:x32", "options:winrsrc", }
+    filter { "system:windows", "platforms:x86", "options:winrsrc", }
         files {
             "resources/win/api/32/resources.rc"
         }
@@ -928,7 +946,7 @@ project "api_experimental"
     -- libs search dir
     ---------
     -- x32 libs search dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         libdirs {
             x32_deps_libdir,
             x32_deps_overlay_libdir,
@@ -958,7 +976,7 @@ project "steamclient_experimental"
 
     -- name
     ---------
-    filter { "system:windows", "platforms:x32", }
+    filter { "system:windows", "platforms:x86", }
         targetname "steamclient"
     filter { "system:windows", "platforms:x64", }
         targetname "steamclient64"
@@ -978,7 +996,7 @@ project "steamclient_experimental"
     -- include dir
     ---------
     -- x32 include dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         includedirs {
             x32_deps_include,
             x32_deps_overlay_include,
@@ -1004,7 +1022,7 @@ project "steamclient_experimental"
         'dll/flat.cpp',
     }
     -- deps
-    filter { 'options:incdeps', "platforms:x32", }
+    filter { 'options:incdeps', "platforms:x86", }
         files {
             table_postfix_items(x32_deps_overlay_include, '/**.h'),
             table_postfix_items(x32_deps_overlay_include, '/**.hxx'),
@@ -1022,7 +1040,7 @@ project "steamclient_experimental"
             "dll/wrap.cpp"
         }
     -- Windows x32 common source files
-    filter { "system:windows", "platforms:x32", "options:winrsrc", }
+    filter { "system:windows", "platforms:x86", "options:winrsrc", }
         files {
             "resources/win/client/32/resources.rc"
         }
@@ -1060,7 +1078,7 @@ project "steamclient_experimental"
     -- libs search dir
     ---------
     -- x32 libs search dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         libdirs {
             x32_deps_libdir,
             x32_deps_overlay_libdir,
@@ -1098,7 +1116,7 @@ project "tool_lobby_connect"
     ---------
     -- common include dir
     -- x32 include dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         includedirs {
             x32_deps_include,
         }
@@ -1123,7 +1141,7 @@ project "tool_lobby_connect"
         'dll/flat.cpp',
     }
     -- Windows x32 common source files
-    filter { "system:windows", "platforms:x32", "options:winrsrc", }
+    filter { "system:windows", "platforms:x86", "options:winrsrc", }
         files {
             "resources/win/launcher/32/resources.rc"
         }
@@ -1153,7 +1171,7 @@ project "tool_lobby_connect"
     -- libs search dir
     ---------
     -- x32 libs search dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         libdirs {
             x32_deps_libdir,
         }
@@ -1220,7 +1238,7 @@ project "lib_game_overlay_renderer"
 
     -- name
     ---------
-    filter { "system:windows", "platforms:x32", }
+    filter { "system:windows", "platforms:x86", }
         targetname "GameOverlayRenderer"
     filter { "system:windows", "platforms:x64", }
         targetname "GameOverlayRenderer64"
@@ -1231,7 +1249,7 @@ project "lib_game_overlay_renderer"
     -- include dir
     ---------
     -- x32 include dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         includedirs {
             x32_deps_include,
         }
@@ -1252,7 +1270,7 @@ project "lib_game_overlay_renderer"
         "common_helpers/os_detector.h",
     }
     -- x32 common source files
-    filter { "system:windows", "platforms:x32", "options:winrsrc", }
+    filter { "system:windows", "platforms:x86", "options:winrsrc", }
         files {
             "resources/win/game_overlay_renderer/32/resources.rc"
         }
@@ -1280,7 +1298,7 @@ project "steamclient_experimental_stub"
 
     -- name
     ---------
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         targetname "steamclient"
     filter { "platforms:x64", }
         targetname "steamclient64"
@@ -1293,7 +1311,7 @@ project "steamclient_experimental_stub"
         "steamclient/steamclient.cpp",
     }
     -- x32 common source files
-    filter { "platforms:x32", "options:winrsrc", }
+    filter { "platforms:x86", "options:winrsrc", }
         files {
             "resources/win/client/32/resources.rc"
         }
@@ -1316,7 +1334,7 @@ project "steamclient_experimental_extra"
     -- include dir
     ---------
     -- x32 include dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         includedirs {
             x32_deps_include,
         }
@@ -1342,7 +1360,7 @@ project "steamclient_experimental_extra"
         'libs/detours/uimports.cc',
     }
     -- x32 common source files
-    filter { "platforms:x32", "options:winrsrc", }
+    filter { "platforms:x86", "options:winrsrc", }
         files {
             "resources/win/client/32/resources.rc"
         }
@@ -1434,7 +1452,7 @@ project "steamclient_experimental_loader"
         "libs/simpleini/**",
     }
     -- x32 common source files
-    filter { "platforms:x32", "options:winrsrc", }
+    filter { "platforms:x86", "options:winrsrc", }
         files {
             "resources/win/launcher/32/resources.rc"
         }
@@ -1546,7 +1564,7 @@ project "steamclient_regular"
     -- include dir
     ---------
     -- x32 include dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         includedirs {
             x32_deps_include,
         }
@@ -1579,7 +1597,7 @@ project "steamclient_regular"
     -- libs search dir
     ---------
     -- x32 libs search dir
-    filter { "platforms:x32", }
+    filter { "platforms:x86", }
         libdirs {
             x32_deps_libdir,
         }
@@ -1660,6 +1678,46 @@ project "test_crash_printer_sa_sigaction"
         '%[%{!cfg.buildtarget.abspath}]',
     }
 -- End test_crash_printer_sa_sigaction
+
+
+-- Project test_gamepad_linux
+---------
+project "test_gamepad_linux"
+    kind "ConsoleApp"
+    location "%{wks.location}/%{prj.name}"
+    targetdir(path.join(build_dir, os_iden, _ACTION, "%{cfg.buildcfg}/tests/gamepad"))
+    targetname "test_gamepad_linux_%{cfg.platform}"
+
+
+    -- defines
+    ---------
+    filter {} -- reset the filter and remove all active keywords
+    defines {
+        "GAMEPAD_TESTING",
+    }
+
+
+    -- common source & header files
+    ---------
+    filter {} -- reset the filter and remove all active keywords
+    files {
+        'libs/gamepad/gamepad.c',
+        'libs/gamepad/gamepad.h',
+        'tests/gamepad/test_gamepad_linux.cpp',
+    }
+    removefiles {
+        'post_build/**',
+        'build/deps/**',
+    }
+
+
+    -- post build
+    ---------
+    filter {} -- reset the filter and remove all active keywords
+    postbuildcommands {
+        '%[%{!cfg.buildtarget.abspath}]',
+    }
+-- End test_gamepad_linux
 
 end
 -- End LINUX ONLY TARGETS

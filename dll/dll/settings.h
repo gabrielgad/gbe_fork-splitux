@@ -109,6 +109,8 @@ struct Controller_Settings {
     std::map<std::string, std::map<std::string, std::pair<std::set<std::string>, std::string>>> action_sets{};
     std::map<std::string, std::string> action_set_layer_parents{};
     std::map<std::string, std::map<std::string, std::pair<std::set<std::string>, std::string>>> action_set_layers{};
+    std::string controller_type_override{};
+    bool enabled{};
 };
 
 struct Group_Clans {
@@ -126,7 +128,13 @@ struct Overlay_Appearance {
     constexpr const static NotificationPosition default_pos = NotificationPosition::top_right;
 
     std::string font_override{}; // path to a custom user-provided TTF font
+    std::string font_override_ach_title{}; // path to custom font for achievement title
+    std::string font_override_ach_desc{}; // path to custom font for achievement description
     float font_size = 16.0f;
+    float font_size_fps = 0.0f;
+    float font_size_ach_title = 0.0f;
+    float font_size_ach_desc = 0.0f;
+    bool font_ach_title_bold = false;
     
     float icon_size = 64.0f;
 
@@ -200,32 +208,6 @@ struct Branch_Info {
     bool active = false;
 };
 
-struct OldP2pBehavior {
-    enum class EPacketShareMode {
-        // if the sending type is unreliable (UDP), share packets between gameserver and client
-        // otherwise, don't share packets
-        DEFAULT,
-
-        // always share packets between gameserver and client
-        ALWAYS_SHARE,
-
-        // never share packets between gameserver and client
-        NEVER_SHARE,
-
-        _LAST,
-    };
-
-    static EPacketShareMode to_share_mode(int val) {
-        if (val < 0 || val >= (unsigned)EPacketShareMode::_LAST) {
-            return EPacketShareMode::DEFAULT;
-        }
-
-        return (EPacketShareMode)val;
-    }
-
-    EPacketShareMode mode = EPacketShareMode::DEFAULT;
-};
-
 class Settings {
 private:
     CSteamID steam_id{}; // user id
@@ -245,6 +227,7 @@ private:
     std::set<AppId_t> installed_app_ids{};
 
     std::map<AppId_t, std::string> app_paths{};
+    std::map<AppId_t, std::string> purchased_keys{};
     std::vector<struct Mod_entry> mods{};
     std::map<std::string, Leaderboard_config> leaderboards{};
     std::map<std::string, Stat_config> stats{};
@@ -303,7 +286,7 @@ public:
     // allow stats not defined by the user?
     bool allow_unknown_stats = false;
 
-    // whether to enable the functionality which reports an achievement progress for stats that are tied to achievements
+    //whether to enable the functionality which reports an achievement progress for stats that are tied to achievements
     // only used internally for a stat that's tied to an achievement, the normal achievement progress requests made by the game are not impacted
     bool stat_achievement_progress_functionality = true;
     // when a stat that's tied to an achievement gets a new value, should the emu save that progress only if it's higher?
@@ -348,7 +331,6 @@ public:
     struct Controller_Settings controller_settings{};
     std::string glyphs_directory{};
 
-
     // allow Steam_User_Stats::FindLeaderboard() to always succeed and create the given unknown leaderboard
     bool disable_leaderboards_create_unknown = false;
     // share leaderboards with other players playing the same game on the same network
@@ -368,7 +350,7 @@ public:
     int overlay_renderer_detector_timeout_sec = 15; // "Saints Row (2022)" takes almost ~8 sec to detect renderer (DX12)
     bool disable_overlay_achievement_notification = false;
     bool disable_overlay_friend_notification = false;
-    bool disable_overlay_achievement_progress = false;
+    bool disable_overlay_achievement_progress = true;
     unsigned overlay_fps_avg_window = 10;
     float overlay_stats_pos_x = 0.0f;
     float overlay_stats_pos_y = 0.0f;
@@ -395,19 +377,25 @@ public:
     bool overlay_always_show_fps = false;
     bool overlay_always_show_frametime = false;
     bool overlay_always_show_playtime = false;
+    // keys used to toggle the overlay, default = Shift + Tab
+    std::vector<std::string> overlay_toggle_keys{};
+    // minimum time interval between achievement notifications (in milliseconds)
+    int achievement_notification_delay_ms = 0;
 
     // free weekend
     bool free_weekend = false;
 
-    // old P2P (ISteamNetworking) behavior
-    OldP2pBehavior old_p2p_behavior{};
-
     // P2P session auto-accept (fixes games that don't properly handle P2PSessionRequest_t)
+    // splitux tweak — old_p2p_behavior removed upstream; consumer (p2p_manager) refactored,
+    // re-home the auto-accept check later. Storage kept so config parsing stays valid.
     bool auto_accept_p2p_sessions_any = false;
     std::set<uint64_t> auto_accept_p2p_sessions_friends{};
 
     // voice chat
     bool enable_voice_chat = false;
+
+    // only use 32 bits for inventory item ids
+    bool use_32bit_inventory_item_ids = false;
 
 
 #ifdef LOBBY_CONNECT
@@ -461,6 +449,10 @@ public:
     //App Install paths
     void setAppInstallPath(AppId_t appID, const std::string &path);
     bool getAppInstallPath(AppId_t appID, std::string &path);
+
+    //Purchased keys
+    void setPurchasedKey(AppId_t appID, const std::string &key);
+    bool getPurchasedKey(AppId_t appID, std::string &key) const;
 
     //mod stuff
     void addMod(PublishedFileId_t id, const std::string &title, const std::string &path);
