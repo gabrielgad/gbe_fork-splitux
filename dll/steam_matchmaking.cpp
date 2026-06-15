@@ -1538,12 +1538,14 @@ void Steam_Matchmaking::RunCallbacks()
     auto dr = std::begin(data_requested);
     while (dr != std::end(data_requested)) {
         if (get_lobby(dr->lobby_id)) {
+            PRINT_DEBUG("RequestLobbyData FULFILLED: lobby %llu known -> LobbyDataUpdate(success)", dr->lobby_id.ConvertToUint64());
             trigger_lobby_dataupdate(dr->lobby_id, dr->lobby_id, true);
             dr = data_requested.erase(dr);
             continue;
         }
 
         if (check_timedout(dr->requested, REQUEST_LOBBY_DATA_TIMEOUT)) {
+            PRINT_DEBUG("RequestLobbyData TIMEOUT: lobby %llu NOT known (joiner never learned it) -> LobbyDataUpdate(failure)", dr->lobby_id.ConvertToUint64());
             trigger_lobby_dataupdate(dr->lobby_id, dr->lobby_id, false);
             dr = data_requested.erase(dr);
             continue;
