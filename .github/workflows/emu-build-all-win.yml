@@ -94,7 +94,7 @@ jobs:
 
           for %%P in (api_regular api_experimental steamclient_experimental_stub steamclient_experimental steamclient_experimental_loader steamclient_experimental_extra lib_game_overlay_renderer lib_steamnetworkingsockets tool_lobby_connect tool_generate_interfaces) do (
             for %%A in (x64 Win32) do (
-              echo === Building %%P (%%A, release) ===
+              echo === Building %%P [%%A release] ===
               msbuild /nologo /t:%%P /m /v:m /p:Configuration=release,Platform=%%A gbe.sln
               if errorlevel 1 echo Warning: %%P %%A release build failed
             )
