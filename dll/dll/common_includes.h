@@ -166,36 +166,38 @@ static inline void reset_LastError()
 #endif
 
 // PRINT_DEBUG definition
-#ifndef EMU_RELEASE_BUILD
-    #include "dbg_log/dbg_log.hpp"
-    // we need this for printf specifiers for intptr_t such as PRIdPTR
-    #include <inttypes.h>
-    
-    #if defined(__WINDOWS__)
-        #define PRINT_DEBUG_TID() (long long)GetCurrentThreadId()
-        #define PRINT_DEBUG_CLEANUP() WSASetLastError(0)
-    #elif defined(__LINUX__)
-        #include <sys/syscall.h> // syscall
+// Logging is compiled into release builds too, but only ACTIVATES at runtime when
+// the GSE_FORCE_LOG env var is set (see dbg_log::is_active). This lets us observe a
+// shipped (release) emulator — e.g. LAN lobby matchmaking — without a debug build.
+// When inactive, PRINT_DEBUG is a single cached bool check: no formatting and, in
+// particular, NO PRINT_DEBUG_CLEANUP (WSASetLastError(0) would otherwise clobber the
+// game's last socket error on every call). Debug builds: always active.
+#include "dbg_log/dbg_log.hpp"
+// we need this for printf specifiers for intptr_t such as PRIdPTR
+#include <inttypes.h>
 
-        #define PRINT_DEBUG_TID() (long long)syscall(SYS_gettid)
-        #define PRINT_DEBUG_CLEANUP() (void)0
-    #else
-        #warning  "Unrecognized OS"
+#if defined(__WINDOWS__)
+    #define PRINT_DEBUG_TID() (long long)GetCurrentThreadId()
+    #define PRINT_DEBUG_CLEANUP() WSASetLastError(0)
+#elif defined(__LINUX__)
+    #include <sys/syscall.h> // syscall
 
-        #define PRINT_DEBUG_TID() (long long)0
-        #define PRINT_DEBUG_CLEANUP() (void)0
-    #endif
+    #define PRINT_DEBUG_TID() (long long)syscall(SYS_gettid)
+    #define PRINT_DEBUG_CLEANUP() (void)0
+#else
+    #warning  "Unrecognized OS"
 
-    extern dbg_log dbg_logger;
+    #define PRINT_DEBUG_TID() (long long)0
+    #define PRINT_DEBUG_CLEANUP() (void)0
+#endif
 
-    #define PRINT_DEBUG(a, ...) do {                                                                \
-        dbg_logger.write("[tid %lld] %s " a, PRINT_DEBUG_TID(), EMU_FUNC_NAME, ##__VA_ARGS__);      \
-        PRINT_DEBUG_CLEANUP();                                                                      \
-    } while (0)
-
-#else // EMU_RELEASE_BUILD
-    #define PRINT_DEBUG(...)
-#endif // EMU_RELEASE_BUILD
+#define PRINT_DEBUG(a, ...) do {                                                                  \
+    dbg_log& _gse_dbg_log = dbg_logger_get();                                                     \
+    if (_gse_dbg_log.is_active()) {                                                               \
+        _gse_dbg_log.write("[tid %lld] %s " a, PRINT_DEBUG_TID(), EMU_FUNC_NAME, ##__VA_ARGS__);  \
+        PRINT_DEBUG_CLEANUP();                                                                    \
+    }                                                                                             \
+} while (0)
 
 // function entry
 #define PRINT_DEBUG_ENTRY() PRINT_DEBUG("")
