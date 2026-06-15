@@ -29,4 +29,10 @@ public:
     void write(const wchar_t* fmt, ...);
 
     void close();
+
+    // True when logging should actually happen: always in debug builds; in release
+    // builds only when the GSE_FORCE_LOG env var is set (cached on first call).
+    // PRINT_DEBUG gates its whole body on this so an inactive logger has ~zero cost
+    // and no side effects.
+    bool is_active();
 };
