@@ -27,6 +27,47 @@
 
 #define OLD_CHANNEL_NUMBER 1
 
+// max size of a single raw datagram handled by the optional IP<->P2P bridge
+#define MAX_BRIDGE_PACKET 16384
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// optional raw-UDP <-> legacy Steam P2P bridge helpers (cross-platform, mirror network.cpp)
+////////////////////////////////////////////////////////////////////////////////////////////
+
+#if defined(STEAM_WIN32)
+    #define BRIDGE_INVALID_SOCKET ((sock_t)INVALID_SOCKET)
+#else
+    #define BRIDGE_INVALID_SOCKET ((sock_t)-1)
+#endif
+
+static bool bridge_socket_valid(sock_t sock)
+{
+#if defined(STEAM_WIN32)
+    return sock != (sock_t)INVALID_SOCKET && sock != (sock_t)~0;
+#else
+    return (int)sock >= 0;
+#endif
+}
+
+static void bridge_close_socket(sock_t sock)
+{
+#if defined(STEAM_WIN32)
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+}
+
+static void bridge_set_nonblocking(sock_t sock)
+{
+#if defined(STEAM_WIN32)
+    u_long mode = 1;
+    ioctlsocket(sock, FIONBIO, &mode);
+#else
+    fcntl(sock, F_SETFL, O_NONBLOCK, 1);
+#endif
+}
+
 
 bool Steam_Networking::connection_exists(CSteamID id)
 {
@@ -192,6 +233,10 @@ Steam_Networking::Steam_Networking(class Settings *settings, class Networking *n
     this->network->setCallback(CALLBACK_ID_USER_STATUS, settings->get_local_steam_id(), &Steam_Networking::steam_networking_callback, this);
     this->run_every_runcb->add(&Steam_Networking::steam_networking_run_every_runcp, this);
 
+    // read the bridge gate once at init; the entire raw-UDP <-> P2P bridge is inert unless "1"
+    this->ip_p2p_bridge_enabled = (get_env_variable("GSE_IP_P2P_BRIDGE") == "1");
+    PRINT_DEBUG("GSE_IP_P2P_BRIDGE = %u", (unsigned)this->ip_p2p_bridge_enabled);
+
     PRINT_DEBUG("user id %llu messages: %p", settings->get_local_steam_id().ConvertToUint64(), &messages);
 }
 
@@ -200,6 +245,14 @@ Steam_Networking::~Steam_Networking()
     this->network->rmCallback(CALLBACK_ID_NETWORKING, settings->get_local_steam_id(), &Steam_Networking::steam_networking_callback, this);
     this->network->rmCallback(CALLBACK_ID_USER_STATUS, settings->get_local_steam_id(), &Steam_Networking::steam_networking_callback, this);
     this->run_every_runcb->remove(&Steam_Networking::steam_networking_run_every_runcp, this);
+
+    // tear down any bridge sockets that were lazily bound
+    std::lock_guard<std::recursive_mutex> lock(bridge_mutex);
+    for (auto &kv : bridge_sockets) {
+        if (bridge_socket_valid(kv.second)) bridge_close_socket(kv.second);
+    }
+    bridge_sockets.clear();
+    bridge_peer_endpoints.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -219,6 +272,34 @@ bool Steam_Networking::SendP2PPacket( CSteamID steamIDRemote, const void *pubDat
 {
     PRINT_DEBUG("len %u sendtype: %u channel: %u to: %llu", cubData, eP2PSendType, nChannel, steamIDRemote.ConvertToUint64());
     std::lock_guard<std::recursive_mutex> lock(global_mutex);
+
+    // Raw-UDP <-> P2P bridge: if this remote was reached over a raw datagram, the joiner is
+    // only listening on its own raw socket, so reply as raw UDP to its recorded endpoint and
+    // skip the normal network->sendTo() path entirely (that peer has no goldberg P2P socket).
+    if (ip_p2p_bridge_enabled) {
+        bridge_get_socket(nChannel); // ensure the bridge socket exists so replies leave from port==channel
+        sockaddr_in dest{};
+        sock_t sock = BRIDGE_INVALID_SOCKET;
+        bool have_endpoint = false;
+        {
+            std::lock_guard<std::recursive_mutex> block(bridge_mutex);
+            auto eit = bridge_peer_endpoints.find(steamIDRemote);
+            if (eit != bridge_peer_endpoints.end()) {
+                dest = eit->second;
+                have_endpoint = true;
+            }
+            auto sit = bridge_sockets.find(nChannel);
+            if (sit != bridge_sockets.end()) sock = sit->second;
+        }
+
+        if (have_endpoint && bridge_socket_valid(sock)) {
+            int sent = sendto(sock, (const char *)pubData, cubData, 0, (struct sockaddr *)&dest, sizeof(dest));
+            PRINT_DEBUG("BRIDGE outbound-raw %u bytes -> peer %llu (raw port %hu) on channel %d, sent=%d",
+                cubData, steamIDRemote.ConvertToUint64(), ntohs(dest.sin_port), nChannel, sent);
+            return true;
+        }
+    }
+
     bool reliable = false;
     if (eP2PSendType == k_EP2PSendReliable || eP2PSendType == k_EP2PSendReliableWithBuffering) reliable = true;
     Common_Message msg;
@@ -254,6 +335,8 @@ bool Steam_Networking::SendP2PPacket( CSteamID steamIDRemote, const void *pubDat
 bool Steam_Networking::IsP2PPacketAvailable( uint32 *pcubMsgSize, int nChannel)
 {
     PRINT_DEBUG("channel: %i", nChannel);
+    // bridge: make sure we are bound to this channel's UDP port so the joiner's raw datagrams land
+    if (ip_p2p_bridge_enabled) bridge_get_socket(nChannel);
     std::lock_guard<std::recursive_mutex> lock(messages_mutex);
     //Not sure if this should be here because it slightly screws up games that don't like such low "pings"
     //Commenting it out for now because it looks like it causes a bug where 20xx gets stuck in an infinite receive packet loop
@@ -288,6 +371,8 @@ bool Steam_Networking::IsP2PPacketAvailable( uint32 *pcubMsgSize)
 bool Steam_Networking::ReadP2PPacket( void *pubDest, uint32 cubDest, uint32 *pcubMsgSize, CSteamID *psteamIDRemote, int nChannel)
 {
     PRINT_DEBUG("%u %i", cubDest, nChannel);
+    // bridge: make sure we are bound to this channel's UDP port so the joiner's raw datagrams land
+    if (ip_p2p_bridge_enabled) bridge_get_socket(nChannel);
     std::lock_guard<std::recursive_mutex> lock(messages_mutex);
     //Not sure if this should be here because it slightly screws up games that don't like such low "pings"
     //Commenting it out for now because it looks like it causes a bug where 20xx gets stuck in an infinite receive packet loop
@@ -771,6 +856,12 @@ int Steam_Networking::GetMaxPacketSize( SNetSocket_t hSocket )
 
 void Steam_Networking::RunCallbacks()
 {
+    // Drain raw bridge datagrams first (we are under global_mutex here, same as the rest of
+    // RunCallbacks). bridge_poll() pushes each datagram into unprocessed_messages, so the
+    // standard unprocessed->messages pipeline below marks them processed, registers the
+    // channel and fires P2PSessionRequest_t exactly like a normally received P2P packet.
+    if (ip_p2p_bridge_enabled) bridge_poll();
+
     uint64 current_time = std::chrono::duration_cast<std::chrono::duration<uint64>>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     {
@@ -966,7 +1057,123 @@ void Steam_Networking::Callback(Common_Message *msg)
         } else
 
         if (msg->low_level().type() == Low_Level::CONNECT) {
-            
+
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// optional raw-UDP <-> legacy Steam P2P bridge (env GSE_IP_P2P_BRIDGE=1)
+////////////////////////////////////////////////////////////////////////////////////////////
+
+// Lazily create + bind a non-blocking UDP socket on 0.0.0.0:<channel>. The bridge reuses the
+// P2P channel number as the UDP port: datagrams the joiner sends to <host-ip>:<channel> are
+// received here, and replies leave from this same socket so their source port == channel
+// (which is what the joiner's raw socket expects answers to come from).
+sock_t Steam_Networking::bridge_get_socket(int channel)
+{
+    std::lock_guard<std::recursive_mutex> lock(bridge_mutex);
+    auto it = bridge_sockets.find(channel);
+    if (it != bridge_sockets.end()) {
+        return it->second;
+    }
+
+    sock_t sock = (sock_t)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (!bridge_socket_valid(sock)) {
+        PRINT_DEBUG("BRIDGE socket() failed for channel %d", channel);
+        return BRIDGE_INVALID_SOCKET;
+    }
+
+    int reuse = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse));
+
+    struct sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY; // 0.0.0.0
+    addr.sin_port = htons((uint16)channel);
+#if defined(STEAM_WIN32)
+    int addrsize = (int)sizeof(addr);
+#else
+    socklen_t addrsize = (socklen_t)sizeof(addr);
+#endif
+    if (bind(sock, (struct sockaddr *)&addr, addrsize) != 0) {
+        // do NOT cache the failure: a later call gets a fresh attempt (port should be free,
+        // since by premise nothing else binds the game's P2P port on the host)
+        PRINT_DEBUG("BRIDGE bind() failed on 0.0.0.0:%d", channel);
+        bridge_close_socket(sock);
+        return BRIDGE_INVALID_SOCKET;
+    }
+
+    bridge_set_nonblocking(sock);
+    bridge_sockets[channel] = sock;
+    PRINT_DEBUG("BRIDGE bound raw UDP socket on 0.0.0.0:%d", channel);
+    return sock;
+}
+
+// Drain every bridge socket and inject the raw datagrams as P2P DATA messages. Always called
+// from RunCallbacks() (i.e. under global_mutex). bridge_mutex is a leaf lock: it is never held
+// while taking messages_mutex or while calling network->get_steam_id_from_ip() (Networking::mutex),
+// which keeps the lock graph (global -> Networking::mutex / messages_mutex; bridge as leaf) acyclic.
+void Steam_Networking::bridge_poll()
+{
+    // snapshot (channel, socket) so we never hold bridge_mutex across recvfrom / id resolution / injection
+    std::vector<std::pair<int, sock_t>> socks;
+    {
+        std::lock_guard<std::recursive_mutex> lock(bridge_mutex);
+        socks.reserve(bridge_sockets.size());
+        for (auto &kv : bridge_sockets) {
+            if (bridge_socket_valid(kv.second)) socks.emplace_back(kv.first, kv.second);
+        }
+    }
+
+    char buffer[MAX_BRIDGE_PACKET];
+    for (auto &cs : socks) {
+        int channel = cs.first;
+        sock_t sock = cs.second;
+        while (true) {
+            struct sockaddr_in src{};
+#if defined(STEAM_WIN32)
+            int srclen = (int)sizeof(src);
+#else
+            socklen_t srclen = (socklen_t)sizeof(src);
+#endif
+            int len = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&src, &srclen);
+            if (len < 0) break; // EWOULDBLOCK/EAGAIN: no more datagrams queued on this socket
+
+            // src.sin_addr.s_addr is already in network byte order, identical to how IP_PORT::ip
+            // is stored, so it is passed to get_steam_id_from_ip() unchanged (no ntohl()).
+            CSteamID sender = network->get_steam_id_from_ip((uint32)src.sin_addr.s_addr);
+            if (!sender.IsValid()) {
+                PRINT_DEBUG("BRIDGE recv %d bytes on channel %d from UNKNOWN ip (no peer connection), dropping", len, channel);
+                continue;
+            }
+
+            PRINT_DEBUG("BRIDGE recv %d bytes on channel %d from peer %llu (raw port %hu)",
+                len, channel, sender.ConvertToUint64(), ntohs(src.sin_port));
+
+            // remember the peer's raw source endpoint (ip + ephemeral port) for outbound replies
+            {
+                std::lock_guard<std::recursive_mutex> lock(bridge_mutex);
+                bridge_peer_endpoints[sender] = src;
+            }
+
+            // build a Common_Message identical to a received P2P DATA packet and feed it into the
+            // same unprocessed pipeline the network callback uses (see Callback() / RunCallbacks()),
+            // so it acquires network().processed()==true, registers the channel, and triggers the
+            // P2PSessionRequest_t -> AcceptP2PSessionWithUser -> connection_exists() handshake.
+            Common_Message msg;
+            msg.set_source_id(sender.ConvertToUint64());
+            msg.set_dest_id(settings->get_local_steam_id().ConvertToUint64());
+            msg.set_allocated_network(new Network_pb);
+            msg.mutable_network()->set_type(Network_pb::DATA);
+            msg.mutable_network()->set_channel(channel);
+            msg.mutable_network()->set_data(buffer, len);
+
+            {
+                std::lock_guard<std::recursive_mutex> lock(messages_mutex);
+                unprocessed_messages.push_back(msg);
+            }
+            PRINT_DEBUG("BRIDGE injected DATA msg (channel %d, %d bytes) from peer %llu", channel, len, sender.ConvertToUint64());
         }
     }
 }
