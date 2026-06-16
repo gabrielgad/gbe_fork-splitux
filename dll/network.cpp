@@ -1374,6 +1374,20 @@ uint32 Networking::getOwnIP()
     return own_ip;
 }
 
+CSteamID Networking::get_steam_id_from_ip(uint32 ip)
+{
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    for (auto &conn : connections) {
+        // IP_PORT::ip is stored in raw network byte order (== sockaddr_in::sin_addr.s_addr),
+        // see receive_packet() / send_packet_to(); compare directly, ignore the port.
+        if (conn.udp_ip_port.ip == ip && !conn.ids.empty()) {
+            return conn.ids[0];
+        }
+    }
+
+    return k_steamIDNil;
+}
+
 void Networking::startQuery(IP_PORT ip_port)
 {
     if (ip_port.port <= 1024)

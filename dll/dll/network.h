@@ -178,6 +178,14 @@ public:
     uint16 getPort(CSteamID id);
     uint32 getOwnIP();
 
+    // Returns the CSteamID (ids[0]) of the first connection whose udp_ip_port.ip
+    // matches the given IP, else k_steamIDNil. Match is by IP only (port ignored).
+    // NOTE: 'ip' must be in the SAME byte order as IP_PORT::ip, i.e. the raw
+    // network-byte-order sockaddr_in::sin_addr.s_addr (see receive_packet() /
+    // send_packet_to() in network.cpp). Used by the optional raw-UDP <-> legacy
+    // Steam P2P bridge to resolve an inbound datagram's source IP to a peer.
+    CSteamID get_steam_id_from_ip(uint32 ip);
+
     void startQuery(IP_PORT ip_port);
     void shutDownQuery();
     bool isQueryAlive();

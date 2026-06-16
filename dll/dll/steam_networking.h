@@ -76,8 +76,25 @@ public ISteamNetworking
 
     std::map<CSteamID, std::chrono::high_resolution_clock::time_point> new_connection_times{};
     std::queue<CSteamID> new_connections_to_call_cb{};
-    
+
     SNetListenSocket_t socket_number = 0;
+
+    // --- optional raw-UDP <-> legacy Steam P2P bridge (enabled by env GSE_IP_P2P_BRIDGE=1) ---
+    // A joiner whose UE net layer fell back to plain UDP sendto() sends raw datagrams to
+    // <host-ip>:<port>, while the host game only reads/writes via the legacy
+    // ISteamNetworking P2P queue. The game's P2P channel number is reused as the bridge UDP
+    // port (game uses channel 7777, joiner sends raw UDP to <host>:7777), so a bridge socket
+    // bound to 0.0.0.0:<channel> both receives the joiner's datagrams and replies from that
+    // same port (which is what the joiner expects answers to come from).
+    bool ip_p2p_bridge_enabled = false;
+    std::recursive_mutex bridge_mutex{};
+    std::map<int, sock_t> bridge_sockets{};                  // P2P channel -> bound UDP socket (0.0.0.0:channel)
+    std::map<CSteamID, sockaddr_in> bridge_peer_endpoints{}; // peer steam id -> its last raw UDP source endpoint
+
+    // lazily create+bind (and return) the bridge UDP socket for a channel; invalid socket on failure
+    sock_t bridge_get_socket(int channel);
+    // drain all pending raw datagrams on every bridge socket and inject them as P2P DATA messages
+    void bridge_poll();
 
     bool connection_exists(CSteamID id);
     struct Steam_Networking_Connection *get_or_create_connection(CSteamID id);
