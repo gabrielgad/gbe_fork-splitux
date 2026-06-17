@@ -303,9 +303,8 @@ local deps_link = {
 -- add protobuf libs
 table_append(deps_link, {
     lib_prefix .. "protobuf-lite"                 .. static_postfix,
-    "absl_bad_any_cast_impl"                      .. static_postfix,
-    "absl_bad_optional_access"                    .. static_postfix,
-    "absl_bad_variant_access"                     .. static_postfix,
+    -- newer abseil dropped absl_bad_any_cast_impl / absl_bad_optional_access /
+    -- absl_bad_variant_access (any/optional/variant -> std::); do not link them.
     "absl_base"                                   .. static_postfix,
     "absl_city"                                   .. static_postfix,
     "absl_civil_time"                             .. static_postfix,
@@ -344,7 +343,7 @@ table_append(deps_link, {
     "absl_int128"                                 .. static_postfix,
     "absl_kernel_timeout_internal"                .. static_postfix,
     "absl_leak_check"                             .. static_postfix,
-    "absl_log_entry"                              .. static_postfix,
+    -- absl_log_entry removed: not produced by current abseil.
     "absl_log_flags"                              .. static_postfix,
     "absl_log_globals"                            .. static_postfix,
     "absl_log_initialize"                         .. static_postfix,
@@ -367,7 +366,8 @@ table_append(deps_link, {
     "absl_random_distributions"                   .. static_postfix,
     "absl_random_internal_distribution_test_util" .. static_postfix,
     "absl_random_internal_platform"               .. static_postfix,
-    "absl_random_internal_pool_urbg"              .. static_postfix,
+    -- newer abseil renamed pool_urbg -> entropy_pool.
+    "absl_random_internal_entropy_pool"           .. static_postfix,
     "absl_random_internal_randen"                 .. static_postfix,
     "absl_random_internal_randen_hwaes"           .. static_postfix,
     "absl_random_internal_randen_hwaes_impl"      .. static_postfix,

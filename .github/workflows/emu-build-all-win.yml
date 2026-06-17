@@ -92,6 +92,11 @@ jobs:
           @echo off
           setlocal enabledelayedexpansion
 
+          rem The build job checks out with clean:false, so stale DLLs from a prior
+          rem build linger. Wipe the release output dir first so a target that fails
+          rem to build this run cannot ship a leftover DLL (false success).
+          if exist "%GITHUB_WORKSPACE%\build\win\vs2022\release" rmdir /s /q "%GITHUB_WORKSPACE%\build\win\vs2022\release"
+
           for %%P in (api_regular api_experimental steamclient_experimental_stub steamclient_experimental steamclient_experimental_loader steamclient_experimental_extra lib_game_overlay_renderer lib_steamnetworkingsockets tool_lobby_connect tool_generate_interfaces) do (
             for %%A in (x64 Win32) do (
               echo === Building %%P [%%A release] ===
@@ -115,16 +120,16 @@ jobs:
         run: |
           setlocal enabledelayedexpansion
           set "OUT=%GITHUB_WORKSPACE%\build\win\vs2022\release"
-          set MISSING=0
+          set "MISSING="
           for %%F in (
             "regular\x64\steam_api64.dll"
             "regular\x86\steam_api.dll"
             "experimental\x64\steam_api64.dll"
             "experimental\x86\steam_api.dll"
           ) do (
-            if exist "%OUT%\%%~F" ( echo OK: %%~F ) else ( echo MISSING: %%~F & set MISSING=1 )
+            if exist "%OUT%\%%~F" ( echo OK: %%~F ) else ( echo MISSING: %%~F & set "MISSING=1" )
           )
-          if "!MISSING!"=="1" (
+          if defined MISSING (
             echo One or more shippable steam_api DLLs are missing - failing the build.
             exit /b 1
           )
