@@ -666,7 +666,9 @@ if _OPTIONS["build-curl"] or _OPTIONS["all-build"] then
         
         "CURL_USE_MBEDTLS=ON",
         -- "CURL_USE_SCHANNEL=ON",
-        "CURL_CA_FALLBACK=ON",
+        -- CURL_CA_FALLBACK is OpenSSL-only; newer curl hard-errors when it is set
+        -- without CURL_USE_OPENSSL ("CURL_CA_FALLBACK only works with OpenSSL"),
+        -- which broke clean deps rebuilds. We build curl with MbedTLS, so omit it.
 
         -- fix building on Arch Linux
         "CURL_USE_LIBSSH2=OFF",
