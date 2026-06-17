@@ -83,6 +83,14 @@ jobs:
           ref: "third-party/deps/common"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/common"
 
+      - name: "Enable long paths (best-effort)"
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
+        shell: cmd
+        run: |
+          rem Deeply nested dep build paths (abseil etc.) can exceed Windows' 260-char
+          rem MAX_PATH. Best-effort enable long paths; ignore failure if not admin.
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f || ver > nul
+
       - name: "Build deps"
         if: steps.local-deps-check.outputs.deps_exist != 'true'
         shell: cmd

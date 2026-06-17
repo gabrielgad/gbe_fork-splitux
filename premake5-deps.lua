@@ -721,6 +721,12 @@ end
 if _OPTIONS["build-protobuf"] or _OPTIONS["all-build"] then
     local proto_common_defs = {
         "ABSL_PROPAGATE_CXX_STD=ON",
+        -- Skip test targets in protobuf AND its fetched abseil. Besides being
+        -- pointless to build, abseil's test helpers (e.g.
+        -- random_internal_distribution_test_util) produce extremely deep
+        -- build/.tlog paths that blow past Windows' 260-char MAX_PATH (MSB3491)
+        -- on a clean build.
+        "BUILD_TESTING=OFF",
         "protobuf_BUILD_PROTOBUF_BINARIES=ON",
         "protobuf_BUILD_PROTOC_BINARIES=ON",
         "protobuf_BUILD_LIBPROTOC=ON",
