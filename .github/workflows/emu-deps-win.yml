@@ -46,6 +46,7 @@ jobs:
           set DEPS_OK=1
           if not exist "%LOCAL_DEPS_DIR%\vs2022\protobuf\install64" set DEPS_OK=0
           if not exist "%LOCAL_DEPS_DIR%\vs2022\zlib\install64\lib\zlibstatic.lib" set DEPS_OK=0
+          if not exist "%LOCAL_DEPS_DIR%\vs2022\sdl\install64\lib\SDL3-static.lib" set DEPS_OK=0
           if "%DEPS_OK%"=="1" (
             echo deps_exist=true>>%GITHUB_OUTPUT%
             echo Deps already exist and look complete at %LOCAL_DEPS_DIR%
