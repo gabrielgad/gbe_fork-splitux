@@ -535,11 +535,27 @@ if _OPTIONS["build-zlib"] or _OPTIONS["all-build"] then
     local zlib_common_defs = {
         "ZLIB_BUILD_EXAMPLES=OFF",
     }
+    -- The current zlib installs its static lib as 'zs.lib', but downstream deps
+    -- (protobuf, curl) are pointed at ZLIB_LIBRARY=.../zlibstatic.lib by wild_zlib.
+    -- Mirror zs.lib -> zlibstatic.lib after each build so those hardcoded paths
+    -- resolve on a clean build (a stale zlibstatic.lib from older builds used to
+    -- hide this on already-warm runners).
+    local function mirror_zlib_static(arch_iden)
+        local libdir = path.join(deps_dir, 'zlib', 'install' .. arch_iden, 'lib')
+        local zs = path.join(libdir, 'zs.lib')
+        local zstatic = path.join(libdir, 'zlibstatic.lib')
+        if os.isfile(zs) then
+            print('mirroring ' .. zs .. ' -> ' .. zstatic)
+            os.copyfile(zs, zstatic)
+        end
+    end
     if _OPTIONS["32-build"] then
         cmake_build('zlib', true, zlib_common_defs)
+        mirror_zlib_static('32')
     end
     if _OPTIONS["64-build"] then
         cmake_build('zlib', false, zlib_common_defs)
+        mirror_zlib_static('64')
     end
 end
 
