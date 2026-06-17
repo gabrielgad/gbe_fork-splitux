@@ -48,7 +48,11 @@ jobs:
       - name: "Checkout branch"
         uses: actions/checkout@v4
         with:
-          clean: false
+          # clean:true so stale generated/build artifacts from prior runs (e.g. a
+          # removed base_gcmessages.pb.* or old steam_api DLLs) can't get compiled,
+          # linked, or shipped. Deps live in C:\gbe-deps (junctioned later), so a
+          # clean checkout doesn't force a deps rebuild.
+          clean: true
 
       - name: "Setup MSBuild"
         uses: microsoft/setup-msbuild@v2
