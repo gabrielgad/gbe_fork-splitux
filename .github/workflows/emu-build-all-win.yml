@@ -129,12 +129,12 @@ jobs:
           setlocal enabledelayedexpansion
           set "OUT=%GITHUB_WORKSPACE%\build\win\vs2022\release"
           set "MISSING="
-          rem 32-bit output dir is x32 (package_win.bat renames it to x86 later).
+          rem premake emits 32-bit to the x86 dir (and 64-bit to x64).
           for %%F in (
             "regular\x64\steam_api64.dll"
-            "regular\x32\steam_api.dll"
+            "regular\x86\steam_api.dll"
             "experimental\x64\steam_api64.dll"
-            "experimental\x32\steam_api.dll"
+            "experimental\x86\steam_api.dll"
           ) do (
             if exist "%OUT%\%%~F" ( echo OK: %%~F ) else ( echo MISSING: %%~F & set "MISSING=1" )
           )
