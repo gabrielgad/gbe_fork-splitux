@@ -407,6 +407,9 @@ local common_link_win = {
     "Winmm"    .. static_postfix,
     "Bcrypt"   .. static_postfix,
     "Dbghelp"  .. static_postfix,
+    -- ntdll: NtQueryInformationThread/Process used by the newer InGameOverlay
+    -- (mini_detour / system libs).
+    "ntdll"    .. static_postfix,
     -- gamepad
     "Xinput"   .. static_postfix,
     -- imgui / overlay

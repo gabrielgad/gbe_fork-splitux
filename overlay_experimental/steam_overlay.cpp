@@ -312,8 +312,9 @@ void Steam_Overlay::create_fonts()
     font_notif = font_default = font;
     stats.font = font;
     
-    bool res = fonts_atlas.Build();
-    PRINT_DEBUG("created fonts atlas (result=%i)", (int)res);
+    // ImGui 1.92 removed ImFontAtlas::Build(); the atlas is built lazily by the
+    // renderer backend (InGameOverlay) on first use, so no explicit build call.
+    PRINT_DEBUG("created fonts atlas");
 
     reset_LastError();
 }
