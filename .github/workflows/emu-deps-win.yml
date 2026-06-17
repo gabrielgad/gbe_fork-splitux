@@ -2,7 +2,19 @@ name: "Emu third-party dependencies (Windows)"
 
 on:
   workflow_call:
+    inputs:
+      force_rebuild:
+        description: "Wipe the local deps cache and rebuild from scratch"
+        required: false
+        type: boolean
+        default: false
   workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Wipe the local deps cache and rebuild from scratch"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: "write"
@@ -23,12 +35,24 @@ jobs:
         id: "local-deps-check"
         shell: cmd
         run: |
-          if exist "%LOCAL_DEPS_DIR%\vs2022\protobuf\install64" (
+          if /I "${{ inputs.force_rebuild }}"=="true" (
+            echo Force rebuild requested - wiping %LOCAL_DEPS_DIR%\vs2022
+            if exist "%LOCAL_DEPS_DIR%\vs2022" rmdir /s /q "%LOCAL_DEPS_DIR%\vs2022"
+          )
+          rem Require markers from multiple deps, not just protobuf: a partial cache
+          rem (e.g. protobuf present but zlibstatic.lib missing) used to pass this
+          rem check and never refresh, which broke api_regular linking. Treat a
+          rem missing critical lib as "needs rebuild".
+          set DEPS_OK=1
+          if not exist "%LOCAL_DEPS_DIR%\vs2022\protobuf\install64" set DEPS_OK=0
+          if not exist "%LOCAL_DEPS_DIR%\vs2022\zlib\install64\lib\zlibstatic.lib" set DEPS_OK=0
+          if not exist "%LOCAL_DEPS_DIR%\vs2022\sdl\install64\lib\SDL3-static.lib" set DEPS_OK=0
+          if "%DEPS_OK%"=="1" (
             echo deps_exist=true>>%GITHUB_OUTPUT%
-            echo Deps already exist at %LOCAL_DEPS_DIR%
+            echo Deps already exist and look complete at %LOCAL_DEPS_DIR%
           ) else (
             echo deps_exist=false>>%GITHUB_OUTPUT%
-            echo Deps not found, will build
+            echo Deps missing or incomplete, will build
           )
 
       - name: "Checkout branch"
@@ -59,6 +83,14 @@ jobs:
         with:
           ref: "third-party/deps/common"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/common"
+
+      - name: "Enable long paths (best-effort)"
+        if: steps.local-deps-check.outputs.deps_exist != 'true'
+        shell: cmd
+        run: |
+          rem Deeply nested dep build paths (abseil etc.) can exceed Windows' 260-char
+          rem MAX_PATH. Best-effort enable long paths; ignore failure if not admin.
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f || ver > nul
 
       - name: "Build deps"
         if: steps.local-deps-check.outputs.deps_exist != 'true'

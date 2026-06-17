@@ -48,7 +48,11 @@ jobs:
       - name: "Checkout branch"
         uses: actions/checkout@v4
         with:
-          clean: false
+          # clean:true so stale generated/build artifacts from prior runs (e.g. a
+          # removed base_gcmessages.pb.* or old steam_api DLLs) can't get compiled,
+          # linked, or shipped. Deps live in C:\gbe-deps (junctioned later), so a
+          # clean checkout doesn't force a deps rebuild.
+          clean: true
 
       - name: "Setup MSBuild"
         uses: microsoft/setup-msbuild@v2
@@ -83,7 +87,11 @@ jobs:
         shell: cmd
         working-directory: "${{ github.workspace }}"
         run: |
-          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --dosstub --winrsrc --winsign --os=windows vs2022
+          rem No --dosstub/--winsign: that post-build tooling (file_dos_stub_x32.exe /
+          rem sign_helper.bat) crashes on the 32-bit DLL and removes the just-linked
+          rem output, and the emu DLLs don't need a replaced DOS stub or a code
+          rem signature to function. Keep --winrsrc (version resource) which is fine.
+          "${{env.THIRD_PARTY_BASE_DIR}}\common\win\premake\premake5.exe" --file=premake5.lua --genproto --emubuild=${{ github.sha }} --winrsrc --os=windows vs2022
 
       - name: "Build all targets"
         shell: cmd
@@ -91,6 +99,11 @@ jobs:
         run: |
           @echo off
           setlocal enabledelayedexpansion
+
+          rem The build job checks out with clean:false, so stale DLLs from a prior
+          rem build linger. Wipe the release output dir first so a target that fails
+          rem to build this run cannot ship a leftover DLL (false success).
+          if exist "%GITHUB_WORKSPACE%\build\win\vs2022\release" rmdir /s /q "%GITHUB_WORKSPACE%\build\win\vs2022\release"
 
           for %%P in (api_regular api_experimental steamclient_experimental_stub steamclient_experimental steamclient_experimental_loader steamclient_experimental_extra lib_game_overlay_renderer lib_steamnetworkingsockets tool_lobby_connect tool_generate_interfaces) do (
             for %%A in (x64 Win32) do (
@@ -103,6 +116,33 @@ jobs:
           echo === Building lib_steam_old (Win32 only) ===
           msbuild /nologo /t:lib_steam_old /m /v:m /p:Configuration=release,Platform=Win32 gbe.sln
           if errorlevel 1 echo Warning: lib_steam_old Win32 release build failed
+
+          rem Per-target failures above are warn-only (e.g. signing of a dev-only tool,
+          rem or lib_steam_old). Don't let them abort the job here; the next step gates
+          rem the release on the actual shippable DLLs existing.
+          exit /b 0
+
+      - name: "Verify shippable DLLs built"
+        shell: cmd
+        working-directory: "${{ github.workspace }}"
+        run: |
+          setlocal enabledelayedexpansion
+          set "OUT=%GITHUB_WORKSPACE%\build\win\vs2022\release"
+          set "MISSING="
+          rem premake emits 32-bit to the x86 dir (and 64-bit to x64).
+          for %%F in (
+            "regular\x64\steam_api64.dll"
+            "regular\x86\steam_api.dll"
+            "experimental\x64\steam_api64.dll"
+            "experimental\x86\steam_api.dll"
+          ) do (
+            if exist "%OUT%\%%~F" ( echo OK: %%~F ) else ( echo MISSING: %%~F & set "MISSING=1" )
+          )
+          if defined MISSING (
+            echo One or more shippable steam_api DLLs are missing - failing the build.
+            exit /b 1
+          )
+          echo All shippable steam_api DLLs present.
 
       - name: "Package build (release)"
         shell: cmd
