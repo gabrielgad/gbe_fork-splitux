@@ -30,7 +30,8 @@ ISteamBilling *Steam_Client::GetISteamBilling( HSteamUser hSteamUser, HSteamPipe
         return reinterpret_cast<ISteamBilling *>(static_cast<ISteamBilling *>(steam_billing));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 void *Steam_Client::GetISteamBilling_old( HSteamUser hSteamUser, HSteamPipe hSteamPipe, const char *pchVersion )
@@ -49,7 +50,8 @@ ISteamAppDisableUpdate *Steam_Client::GetISteamAppDisableUpdate( HSteamUser hSte
         return reinterpret_cast<ISteamAppDisableUpdate *>(static_cast<ISteamAppDisableUpdate *>(steam_app_disable_update));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // retrieves the ISteamTimeline interface associated with the handle
@@ -68,7 +70,8 @@ ISteamTimeline *Steam_Client::GetISteamTimeline( HSteamUser hSteamUser, HSteamPi
         return reinterpret_cast<ISteamTimeline *>(static_cast<ISteamTimeline *>(steam_timeline));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // retrieves the ISteamGameStats interface associated with the handle
@@ -89,7 +92,8 @@ ISteamGameStats *Steam_Client::GetISteamGameStats( HSteamUser hSteamUser, HSteam
         return reinterpret_cast<ISteamGameStats *>(static_cast<ISteamGameStats *>(steam_gamestats_tmp));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // retrieves the ISteamUser interface associated with the handle
@@ -173,7 +177,8 @@ ISteamUser *Steam_Client::GetISteamUser( HSteamUser hSteamUser, HSteamPipe hStea
         return reinterpret_cast<ISteamUser *>(static_cast<ISteamUser *>(steam_user_tmp));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // retrieves the ISteamGameServer interface associated with the handle
@@ -218,7 +223,8 @@ ISteamGameServer *Steam_Client::GetISteamGameServer( HSteamUser hSteamUser, HSte
         return reinterpret_cast<ISteamGameServer *>(static_cast<ISteamGameServer *>(steam_gameserver));
     }
     
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns the ISteamFriends interface
@@ -265,7 +271,8 @@ ISteamFriends *Steam_Client::GetISteamFriends( HSteamUser hSteamUser, HSteamPipe
         return reinterpret_cast<ISteamFriends *>(static_cast<ISteamFriends *>(steam_friends));
     }
     
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns the ISteamUtils interface
@@ -305,7 +312,8 @@ ISteamUtils *Steam_Client::GetISteamUtils( HSteamPipe hSteamPipe, const char *pc
         return reinterpret_cast<ISteamUtils *>(static_cast<ISteamUtils *>(steam_utils_temp));
     }
     
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns the ISteamMatchmaking interface
@@ -334,7 +342,8 @@ ISteamMatchmaking *Steam_Client::GetISteamMatchmaking( HSteamUser hSteamUser, HS
         return reinterpret_cast<ISteamMatchmaking *>(static_cast<ISteamMatchmaking *>(steam_matchmaking));
     }
     
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns the ISteamMatchmakingServers interface
@@ -349,7 +358,8 @@ ISteamMatchmakingServers *Steam_Client::GetISteamMatchmakingServers( HSteamUser 
         return reinterpret_cast<ISteamMatchmakingServers *>(static_cast<ISteamMatchmakingServers *>(steam_matchmaking_servers));
     }
     
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns the a generic interface
@@ -530,7 +540,8 @@ void *Steam_Client::GetISteamGenericInterface( HSteamUser hSteamUser, HSteamPipe
     }
     
     PRINT_DEBUG("No interface: %s", pchVersion);
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns the ISteamUserStats interface
@@ -567,7 +578,8 @@ ISteamUserStats *Steam_Client::GetISteamUserStats( HSteamUser hSteamUser, HSteam
         return reinterpret_cast<ISteamUserStats *>(static_cast<ISteamUserStats *>(steam_user_stats));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns the ISteamGameServerStats interface
@@ -580,7 +592,8 @@ ISteamGameServerStats *Steam_Client::GetISteamGameServerStats( HSteamUser hSteam
         return reinterpret_cast<ISteamGameServerStats *>(static_cast<ISteamGameServerStats *>(steam_gameserverstats));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns apps interface
@@ -614,7 +627,8 @@ ISteamApps *Steam_Client::GetISteamApps( HSteamUser hSteamUser, HSteamPipe hStea
         return reinterpret_cast<ISteamApps *>(static_cast<ISteamApps *>(steam_apps_temp));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // networking
@@ -645,7 +659,8 @@ ISteamNetworking *Steam_Client::GetISteamNetworking( HSteamUser hSteamUser, HSte
         return reinterpret_cast<ISteamNetworking *>(static_cast<ISteamNetworking *>(steam_networking_temp));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // remote storage
@@ -688,7 +703,8 @@ ISteamRemoteStorage *Steam_Client::GetISteamRemoteStorage( HSteamUser hSteamuser
         return reinterpret_cast<ISteamRemoteStorage *>(static_cast<ISteamRemoteStorage *>(steam_remote_storage));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // user screenshots
@@ -705,7 +721,8 @@ ISteamScreenshots *Steam_Client::GetISteamScreenshots( HSteamUser hSteamuser, HS
         return reinterpret_cast<ISteamScreenshots *>(static_cast<ISteamScreenshots *>(steam_screenshots));
     }
     
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 
@@ -730,7 +747,8 @@ ISteamHTTP *Steam_Client::GetISteamHTTP( HSteamUser hSteamuser, HSteamPipe hStea
         return reinterpret_cast<ISteamHTTP *>(static_cast<ISteamHTTP *>(steam_http_temp));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Deprecated - the ISteamUnifiedMessages interface is no longer intended for public consumption.
@@ -743,7 +761,8 @@ void *Steam_Client::DEPRECATED_GetISteamUnifiedMessages( HSteamUser hSteamuser, 
         return reinterpret_cast<void *>(static_cast<ISteamUnifiedMessages *>(steam_unified_messages));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 ISteamUnifiedMessages *Steam_Client::GetISteamUnifiedMessages( HSteamUser hSteamuser, HSteamPipe hSteamPipe, const char *pchVersion )
@@ -755,7 +774,8 @@ ISteamUnifiedMessages *Steam_Client::GetISteamUnifiedMessages( HSteamUser hSteam
         return reinterpret_cast<ISteamUnifiedMessages *>(static_cast<ISteamUnifiedMessages *>(steam_unified_messages));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Exposes the ISteamController interface
@@ -784,7 +804,8 @@ ISteamController *Steam_Client::GetISteamController( HSteamUser hSteamUser, HSte
         return reinterpret_cast<ISteamController *>(static_cast<ISteamController *>(steam_controller));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Exposes the ISteamUGC interface
@@ -847,7 +868,8 @@ ISteamUGC *Steam_Client::GetISteamUGC( HSteamUser hSteamUser, HSteamPipe hSteamP
         return reinterpret_cast<ISteamUGC *>(static_cast<ISteamUGC *>(steam_ugc_temp));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // returns app list interface, only available on specially registered apps
@@ -860,7 +882,8 @@ ISteamAppList *Steam_Client::GetISteamAppList( HSteamUser hSteamUser, HSteamPipe
         return reinterpret_cast<ISteamAppList *>(static_cast<ISteamAppList *>(steam_applist));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Music Player
@@ -873,7 +896,8 @@ ISteamMusic *Steam_Client::GetISteamMusic( HSteamUser hSteamuser, HSteamPipe hSt
         return reinterpret_cast<ISteamMusic *>(static_cast<ISteamMusic *>(steam_music));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Music Player Remote
@@ -886,7 +910,8 @@ ISteamMusicRemote *Steam_Client::GetISteamMusicRemote(HSteamUser hSteamuser, HSt
         return reinterpret_cast<ISteamMusicRemote *>(static_cast<ISteamMusicRemote *>(steam_musicremote));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // html page display
@@ -907,7 +932,8 @@ ISteamHTMLSurface *Steam_Client::GetISteamHTMLSurface(HSteamUser hSteamuser, HSt
         return reinterpret_cast<ISteamHTMLSurface *>(static_cast<ISteamHTMLSurface *>(steam_HTMLsurface));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // inventory
@@ -931,7 +957,8 @@ ISteamInventory *Steam_Client::GetISteamInventory( HSteamUser hSteamuser, HSteam
         return reinterpret_cast<ISteamInventory *>(static_cast<ISteamInventory *>(steam_inventory_temp));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Video
@@ -950,7 +977,8 @@ ISteamVideo *Steam_Client::GetISteamVideo( HSteamUser hSteamuser, HSteamPipe hSt
         return reinterpret_cast<ISteamVideo *>(static_cast<ISteamVideo *>(steam_video));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Parental controls
@@ -963,7 +991,8 @@ ISteamParentalSettings *Steam_Client::GetISteamParentalSettings( HSteamUser hSte
         return reinterpret_cast<ISteamParentalSettings *>(static_cast<ISteamParentalSettings *>(steam_parental));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 ISteamMasterServerUpdater *Steam_Client::GetISteamMasterServerUpdater( HSteamUser hSteamUser, HSteamPipe hSteamPipe, const char *pchVersion )
@@ -975,7 +1004,8 @@ ISteamMasterServerUpdater *Steam_Client::GetISteamMasterServerUpdater( HSteamUse
         return reinterpret_cast<ISteamMasterServerUpdater *>(static_cast<ISteamMasterServerUpdater *>(steam_masterserver_updater));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 ISteamContentServer *Steam_Client::GetISteamContentServer( HSteamUser hSteamUser, HSteamPipe hSteamPipe, const char *pchVersion )
@@ -995,7 +1025,8 @@ ISteamGameSearch *Steam_Client::GetISteamGameSearch( HSteamUser hSteamuser, HSte
         return reinterpret_cast<ISteamGameSearch *>(static_cast<ISteamGameSearch *>(steam_game_search));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Exposes the Steam Input interface for controller support
@@ -1014,7 +1045,8 @@ ISteamInput *Steam_Client::GetISteamInput( HSteamUser hSteamUser, HSteamPipe hSt
         return reinterpret_cast<ISteamInput *>(static_cast<ISteamInput *>(steam_controller));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 // Steam Parties interface
@@ -1027,7 +1059,8 @@ ISteamParties *Steam_Client::GetISteamParties( HSteamUser hSteamUser, HSteamPipe
         return reinterpret_cast<ISteamParties *>(static_cast<ISteamParties *>(steam_parties));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 ISteamRemotePlay *Steam_Client::GetISteamRemotePlay( HSteamUser hSteamUser, HSteamPipe hSteamPipe, const char *pchVersion )
@@ -1043,7 +1076,8 @@ ISteamRemotePlay *Steam_Client::GetISteamRemotePlay( HSteamUser hSteamUser, HSte
         return reinterpret_cast<ISteamRemotePlay *>(static_cast<ISteamRemotePlay *>(steam_remoteplay));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 ISteamAppTicket *Steam_Client::GetAppTicket( HSteamUser hSteamUser, HSteamPipe hSteamPipe, const char *pchVersion )
@@ -1055,7 +1089,8 @@ ISteamAppTicket *Steam_Client::GetAppTicket( HSteamUser hSteamUser, HSteamPipe h
         return reinterpret_cast<ISteamAppTicket *>(static_cast<ISteamAppTicket *>(steam_app_ticket));
     }
 
-    report_missing_impl_and_exit(pchVersion, EMU_FUNC_NAME);
+    report_missing_impl(pchVersion, EMU_FUNC_NAME);
+    return nullptr; // unknown interface version: emulate real steamclient (null), never exit
 }
 
 void Steam_Client::report_missing_impl(std::string_view itf, std::string_view caller)
@@ -1095,11 +1130,13 @@ void Steam_Client::report_missing_impl(std::string_view itf, std::string_view ca
     }
     catch(...) { }
 
-#if defined(__WINDOWS__)
-    MessageBoxA(nullptr, ss.str().c_str(), "Missing interface", MB_OK);
-#endif
+    // NOTE: no MessageBox here. The blocking "Missing interface" modal could
+    // fatally stall/kill games under Proton/Wine. report_missing_impl is now a
+    // pure (non-blocking, non-exiting) logger; callers decide how to recover.
 }
 
+// Legacy: log + hard-exit. No longer used by the interface getters (they now
+// return null like real steamclient on an unknown version) — kept for compat.
 void Steam_Client::report_missing_impl_and_exit(std::string_view itf, std::string_view caller)
 {
     report_missing_impl(itf, caller);
