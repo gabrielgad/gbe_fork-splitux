@@ -18,12 +18,13 @@
 
 #include <Softpub.h> // WinVerifyTrust
 
-#ifndef EMU_RELEASE_BUILD
 #include "dbg_log/dbg_log.hpp"
-#endif
 
-
-#ifndef EMU_RELEASE_BUILD
+// Define the global dbg_logger unconditionally: PRINT_DEBUG (common_includes.h)
+// references it in release builds too now (the GSE_FORCE_LOG refactor gates logging
+// at runtime via dbg_log::is_active(), not at compile time). base.cpp defines it the
+// same way; leaving this under EMU_RELEASE_BUILD made lib_steam_old fail to link in
+// release (LNK2019 unresolved dbg_logger).
 dbg_log dbg_logger(
     []{
         static wchar_t dll_path[8192]{};
@@ -33,7 +34,6 @@ dbg_log dbg_logger(
             + "STEAM_OLD_LOG_" + std::to_string(common_helpers::rand_number(UINT32_MAX)) + ".log";
     }()
 );
-#endif
 
 
 static bool dll_loaded = false;

@@ -104,6 +104,32 @@ jobs:
           msbuild /nologo /t:lib_steam_old /m /v:m /p:Configuration=release,Platform=Win32 gbe.sln
           if errorlevel 1 echo Warning: lib_steam_old Win32 release build failed
 
+          rem Per-target failures above are warn-only (e.g. signing of a dev-only tool,
+          rem or lib_steam_old). Don't let them abort the job here; the next step gates
+          rem the release on the actual shippable DLLs existing.
+          exit /b 0
+
+      - name: "Verify shippable DLLs built"
+        shell: cmd
+        working-directory: "${{ github.workspace }}"
+        run: |
+          setlocal enabledelayedexpansion
+          set "OUT=%GITHUB_WORKSPACE%\build\win\vs2022\release"
+          set MISSING=0
+          for %%F in (
+            "regular\x64\steam_api64.dll"
+            "regular\x86\steam_api.dll"
+            "experimental\x64\steam_api64.dll"
+            "experimental\x86\steam_api.dll"
+          ) do (
+            if exist "%OUT%\%%~F" ( echo OK: %%~F ) else ( echo MISSING: %%~F & set MISSING=1 )
+          )
+          if "!MISSING!"=="1" (
+            echo One or more shippable steam_api DLLs are missing - failing the build.
+            exit /b 1
+          )
+          echo All shippable steam_api DLLs present.
+
       - name: "Package build (release)"
         shell: cmd
         working-directory: "${{ github.workspace }}"
