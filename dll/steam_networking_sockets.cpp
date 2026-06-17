@@ -54,6 +54,7 @@ SteamNetworkingMessage_t* Steam_Networking_Sockets::get_steam_message_connection
     pMsg->m_pfnFreeData = &free_steam_message_data;
     pMsg->m_pfnRelease = &delete_steam_message;
     pMsg->m_nChannel = 0;
+    pMsg->m_idxLane = static_cast<uint16>(connect_socket->second.data.top().lane());
     connect_socket->second.data.pop();
     PRINT_DEBUG("get_steam_message_connection %u %lu, %llu", hConn, size, pMsg->m_nMessageNumber);
     return pMsg;
@@ -132,17 +133,13 @@ bool Steam_Networking_Sockets::send_packet_new_connection(HSteamNetConnection m_
     msg.mutable_networking_sockets()->set_connection_id_from(connect_socket->first);
     msg.mutable_networking_sockets()->set_connection_id(connect_socket->second.remote_id);
 
-    // SPLITUX-DEBUG: what we put on the wire for REQUEST/ACCEPTED.
-    PRINT_DEBUG("SPLITUX send_new_conn: my_socket=%u status=%d -> type=%s conn_id(remote target)=%u conn_id_from(me)=%u dest=%" PRIu64,
-                connect_socket->first, (int)connect_socket->second.status,
-                connect_socket->second.status == CONNECT_SOCKET_CONNECTED ? "ACCEPTED" : "REQUEST",
-                connect_socket->second.remote_id, connect_socket->first,
-                connect_socket->second.remote_identity.GetSteamID64());
-
     uint64_t steam_id = connect_socket->second.remote_identity.GetSteamID64();
     if (steam_id) {
         msg.set_dest_id(steam_id);
-        return network->sendTo(&msg, true);
+        // sendToAllWithID: a peer Steam account may map to several local
+        // connections (bootstrap + shipping exe). Route the REQUEST/ACCEPTED to
+        // all of them so the process owning the socket actually receives it.
+        return network->sendToAllWithID(&msg, true);
     }
 
     const SteamNetworkingIPAddr *ip_addr = connect_socket->second.remote_identity.GetIPAddr();
@@ -194,7 +191,7 @@ void Steam_Networking_Sockets::set_steamnetconnectioninfo(std::map<HSteamNetConn
     pInfo->m_hListenSocket = connect_socket->second.listen_socket_id;
     pInfo->m_addrRemote.Clear(); //TODO
     if (connect_socket->second.real_port != SNS_DISABLED_PORT) {
-        pInfo->m_addrRemote.SetIPv4(network->getIP(connect_socket->second.remote_identity.GetSteamID()), connect_socket->first);
+        pInfo->m_addrRemote.SetIPv4(network->getIP(connect_socket->second.remote_identity.GetSteamID()), connect_socket->second.real_port);
     }
 
     pInfo->m_idPOPRemote = 0;
@@ -208,10 +205,6 @@ void Steam_Networking_Sockets::set_steamnetconnectioninfo(std::map<HSteamNetConn
     //keep this in mind in future interface updates
 }
 
-// SPLITUX: from sns_fix commit 2589077 — the old ISteamNetworkingSockets001..011
-// interfaces poll connection state via SteamNetConnectionInfo001_t. This was an
-// unimplemented stub returning false, so UE5's SteamSockets driver never saw the
-// connection reach Connected and never sent data (120s timeout). Implement it.
 void Steam_Networking_Sockets::set_steamnetconnectioninfo_001(std::map<HSteamNetConnection, Connect_Socket>::iterator connect_socket, SteamNetConnectionInfo001_t* pInfo)
 {
     pInfo->m_steamIDRemote = connect_socket->second.remote_identity.GetSteamID();
@@ -219,7 +212,7 @@ void Steam_Networking_Sockets::set_steamnetconnectioninfo_001(std::map<HSteamNet
     pInfo->m_hListenSocket = connect_socket->second.listen_socket_id;
     if (connect_socket->second.real_port != SNS_DISABLED_PORT) {
         pInfo->m_unIPRemote = network->getIP(connect_socket->second.remote_identity.GetSteamID());
-        pInfo->m_unPortRemote = connect_socket->first;
+        pInfo->m_unPortRemote = connect_socket->second.real_port;
     }
 
     pInfo->m_idPOPRemote = 0;
@@ -227,7 +220,6 @@ void Steam_Networking_Sockets::set_steamnetconnectioninfo_001(std::map<HSteamNet
     pInfo->m_eState = convert_status(connect_socket->second.status);
     pInfo->m_eEndReason = 0; //TODO
     pInfo->m_szEndDebug[0] = 0;
-
     //Note some games might not allocate a struct the whole size of SteamNetConnectionInfo_t when calling GetConnectionInfo
     //keep this in mind in future interface updates
 }
@@ -586,7 +578,7 @@ bool Steam_Networking_Sockets::CloseConnection( HSteamNetConnection hPeer, int n
         msg.mutable_networking_sockets()->set_real_port(connect_socket->second.real_port);
         msg.mutable_networking_sockets()->set_connection_id_from(connect_socket->first);
         msg.mutable_networking_sockets()->set_connection_id(connect_socket->second.remote_id);
-        network->sendTo(&msg, true);
+        network->sendToAllWithID(&msg, true);
     }
 
     sbcs->connect_sockets.erase(connect_socket);
@@ -770,13 +762,14 @@ EResult Steam_Networking_Sockets::SendMessageToConnection( HSteamNetConnection h
     msg.mutable_networking_sockets()->set_connection_id_from(connect_socket->first);
     msg.mutable_networking_sockets()->set_connection_id(connect_socket->second.remote_id);
     msg.mutable_networking_sockets()->set_data(pData, cbData);
+    msg.mutable_networking_sockets()->set_lane(0);
     uint64 message_number = connect_socket->second.packet_send_counter;
     msg.mutable_networking_sockets()->set_message_number(message_number);
     connect_socket->second.packet_send_counter += 1;
 
     bool reliable = false;
     if (nSendFlags & k_nSteamNetworkingSend_Reliable) reliable = true;
-    if (network->sendTo(&msg, reliable)) {
+    if (network->sendToAllWithID(&msg, reliable)) {
         if (pOutMessageNumber) *pOutMessageNumber = message_number;
         return k_EResultOK;
     }
@@ -828,7 +821,44 @@ void Steam_Networking_Sockets::SendMessages( int nMessages, SteamNetworkingMessa
     std::lock_guard<std::recursive_mutex> lock(global_mutex);
     for (int i = 0; i < nMessages; ++i) {
         int64 out_number = 0;
-        int result = SendMessageToConnection(pMessages[i]->m_conn, pMessages[i]->m_pData, pMessages[i]->m_cbSize, pMessages[i]->m_nFlags, &out_number);
+        int result = k_EResultInvalidParam;
+
+        if (pMessages[i]) {
+            auto connect_socket = sbcs->connect_sockets.find(pMessages[i]->m_conn);
+            if (connect_socket == sbcs->connect_sockets.end()) {
+                result = k_EResultInvalidParam;
+            } else if (connect_socket->second.status == CONNECT_SOCKET_CLOSED || connect_socket->second.status == CONNECT_SOCKET_TIMEDOUT) {
+                result = k_EResultNoConnection;
+            } else if (connect_socket->second.status != CONNECT_SOCKET_CONNECTED && connect_socket->second.status != CONNECT_SOCKET_CONNECTING) {
+                result = k_EResultInvalidState;
+            } else {
+                Common_Message msg;
+                msg.set_source_id(connect_socket->second.created_by.ConvertToUint64());
+                msg.set_dest_id(connect_socket->second.remote_identity.GetSteamID64());
+                msg.set_allocated_networking_sockets(new Networking_Sockets);
+                msg.mutable_networking_sockets()->set_type(Networking_Sockets::DATA);
+                msg.mutable_networking_sockets()->set_virtual_port(connect_socket->second.virtual_port);
+                msg.mutable_networking_sockets()->set_real_port(connect_socket->second.real_port);
+                msg.mutable_networking_sockets()->set_connection_id_from(connect_socket->first);
+                msg.mutable_networking_sockets()->set_connection_id(connect_socket->second.remote_id);
+                msg.mutable_networking_sockets()->set_data(pMessages[i]->m_pData, pMessages[i]->m_cbSize);
+                msg.mutable_networking_sockets()->set_lane(pMessages[i]->m_idxLane);
+
+                uint64 message_number = connect_socket->second.packet_send_counter;
+                msg.mutable_networking_sockets()->set_message_number(message_number);
+                connect_socket->second.packet_send_counter += 1;
+
+                bool reliable = false;
+                if (pMessages[i]->m_nFlags & k_nSteamNetworkingSend_Reliable) reliable = true;
+                if (network->sendToAllWithID(&msg, reliable)) {
+                    out_number = message_number;
+                    result = k_EResultOK;
+                } else {
+                    result = k_EResultFail;
+                }
+            }
+        }
+
         if (pOutMessageNumberOrResult) {
             if (result == k_EResultOK) {
                 pOutMessageNumberOrResult[i] = out_number;
@@ -923,7 +953,7 @@ int Steam_Networking_Sockets::ReceiveMessagesOnListenSocket( HSteamListenSocket 
 /// Returns basic information about the high-level state of the connection.
 bool Steam_Networking_Sockets::GetConnectionInfo( HSteamNetConnection hConn, SteamNetConnectionInfo_t *pInfo )
 {
-    PRINT_DEBUG_ENTRY();
+    PRINT_DEBUG("%u %i", hConn, pInfo == NULL);
     std::lock_guard<std::recursive_mutex> lock(global_mutex);
     if (!pInfo) return false;
 
@@ -1378,9 +1408,9 @@ bool Steam_Networking_Sockets::SetConnectionPollGroup( HSteamNetConnection hConn
 
     HSteamNetPollGroup old_poll_group = connect_socket->second.poll_group;
     if (old_poll_group != k_HSteamNetPollGroup_Invalid) {
-        auto group = sbcs->poll_groups.find(hPollGroup);
-        if (group != sbcs->poll_groups.end()) {
-            group->second.remove(hConn);
+        auto old_group = sbcs->poll_groups.find(old_poll_group); // bugfix: should be old_poll_group
+        if (old_group != sbcs->poll_groups.end()) {
+            old_group->second.remove(hConn);
         }
     }
 
@@ -2115,15 +2145,6 @@ void Steam_Networking_Sockets::Callback(Common_Message *msg)
             }
 
         } else if (msg->networking_sockets().type() == Networking_Sockets::CONNECTION_ACCEPTED) {
-            // SPLITUX-DEBUG: trace why same-host two-instance P2P accept doesn't take.
-            PRINT_DEBUG("SPLITUX ACCEPTED rx: conn_id(local target)=%" PRIu64 " conn_id_from(remote)=%" PRIu64 " src=%" PRIu64 " #sockets=%zu",
-                        msg->networking_sockets().connection_id(), msg->networking_sockets().connection_id_from(),
-                        msg->source_id(), sbcs->connect_sockets.size());
-            for (auto &cs : sbcs->connect_sockets) {
-                PRINT_DEBUG("SPLITUX   have socket id=%u status=%d remote_steam=%" PRIu64 " remote_id=%u vport=%d",
-                            cs.first, (int)cs.second.status, cs.second.remote_identity.GetSteamID64(),
-                            cs.second.remote_id, cs.second.virtual_port);
-            }
             auto connect_socket = sbcs->connect_sockets.find(static_cast<HSteamNetConnection>(msg->networking_sockets().connection_id()));
             if (connect_socket != sbcs->connect_sockets.end()) {
                 if (connect_socket->second.remote_identity.GetSteamID64() == 0) {
@@ -2134,14 +2155,7 @@ void Steam_Networking_Sockets::Callback(Common_Message *msg)
                     connect_socket->second.remote_id = static_cast<HSteamNetConnection>(msg->networking_sockets().connection_id_from());
                     connect_socket->second.status = CONNECT_SOCKET_CONNECTED;
                     launch_callback(connect_socket->first, CONNECT_SOCKET_CONNECTING);
-                    PRINT_DEBUG("SPLITUX ACCEPTED matched -> socket %u now CONNECTED", connect_socket->first);
-                } else {
-                    PRINT_DEBUG("SPLITUX ACCEPTED found socket %u but NOT transitioned (remote_steam=%" PRIu64 " vs src=%" PRIu64 ", status=%d)",
-                                connect_socket->first, connect_socket->second.remote_identity.GetSteamID64(),
-                                msg->source_id(), (int)connect_socket->second.status);
                 }
-            } else {
-                PRINT_DEBUG("SPLITUX ACCEPTED NO socket matched conn_id=%" PRIu64, msg->networking_sockets().connection_id());
             }
         } else if (msg->networking_sockets().type() == Networking_Sockets::DATA) {
             auto connect_socket = sbcs->connect_sockets.find(static_cast<HSteamNetConnection>(msg->networking_sockets().connection_id()));

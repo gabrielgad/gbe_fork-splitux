@@ -48,6 +48,7 @@
 #include <set>
 #include <queue>
 #include <list>
+#include <unordered_map>
 
 #include <thread>
 #include <mutex>
@@ -190,13 +191,12 @@ static inline void reset_LastError()
     #define PRINT_DEBUG_CLEANUP() (void)0
 #endif
 
-extern dbg_log dbg_logger;
-
-#define PRINT_DEBUG(a, ...) do {                                                                \
-    if (dbg_logger.is_active()) {                                                               \
-        dbg_logger.write("[tid %lld] %s " a, PRINT_DEBUG_TID(), EMU_FUNC_NAME, ##__VA_ARGS__);  \
-        PRINT_DEBUG_CLEANUP();                                                                  \
-    }                                                                                           \
+#define PRINT_DEBUG(a, ...) do {                                                                  \
+    dbg_log& _gse_dbg_log = dbg_logger_get();                                                     \
+    if (_gse_dbg_log.is_active()) {                                                               \
+        _gse_dbg_log.write("[tid %lld] %s " a, PRINT_DEBUG_TID(), EMU_FUNC_NAME, ##__VA_ARGS__);  \
+        PRINT_DEBUG_CLEANUP();                                                                    \
+    }                                                                                             \
 } while (0)
 
 // function entry

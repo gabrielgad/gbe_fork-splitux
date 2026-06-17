@@ -66,6 +66,10 @@ public ISteamFriends
     std::map<std::string, std::string> reg{};
     std::string reg_nullptr{};
 
+    // stable backing store for the auto-derived "connect" rich-presence string
+    // (see get_friend_rich_presence_silent)
+    std::string rich_presence_connect{};
+
     Friend *find_friend(CSteamID id);
 
     void persona_change(CSteamID id, EPersonaChange flags);

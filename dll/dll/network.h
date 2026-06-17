@@ -22,6 +22,7 @@
 #include <curl/curl.h>
 
 #define DEFAULT_PORT 47584
+#define NUM_QUERY_PORTS 10
 
 #if defined(STEAM_WIN32)
 typedef unsigned int sock_t;
@@ -67,6 +68,7 @@ enum Callback_Ids {
     CALLBACK_ID_GAMESERVER_STATS,
     CALLBACK_ID_LEADERBOARDS_STATS,
     CALLBACK_ID_USER_STATS,
+    CALLBACK_ID_GAMESERVER_ITEMS,
 
     CALLBACK_IDS_MAX
 };
@@ -145,7 +147,17 @@ public:
 
     // send to a specific user, set_dest_id() must be called
     bool sendTo(Common_Message *msg, bool reliable, Connection *conn = NULL);
-    
+
+    // send to EVERY connection that matches msg->dest_id() (not just the first).
+    // Needed when multiple local processes share one Steam account (e.g. a
+    // bootstrap launcher exe + the shipping game exe both loading steam_api):
+    // P2P connection-establishment + DATA messages are addressed by Steam ID,
+    // and routing to a single connection delivers them to the wrong process,
+    // which has no matching socket and silently drops them. Delivering to all
+    // matching connections lets the process that owns the socket handle it;
+    // the others ignore it (their socket lookup fails).
+    bool sendToAllWithID(Common_Message *msg, bool reliable);
+
     // send to all users whose account type is Individual, no need to call set_dest_id(), this is done automatically
     bool sendToAllIndividuals(Common_Message *msg, bool reliable);
 
@@ -165,6 +177,14 @@ public:
     uint32 getIP(CSteamID id);
     uint16 getPort(CSteamID id);
     uint32 getOwnIP();
+
+    // Returns the CSteamID (ids[0]) of the first connection whose udp_ip_port.ip
+    // matches the given IP, else k_steamIDNil. Match is by IP only (port ignored).
+    // NOTE: 'ip' must be in the SAME byte order as IP_PORT::ip, i.e. the raw
+    // network-byte-order sockaddr_in::sin_addr.s_addr (see receive_packet() /
+    // send_packet_to() in network.cpp). Used by the optional raw-UDP <-> legacy
+    // Steam P2P bridge to resolve an inbound datagram's source IP to a peer.
+    CSteamID get_steam_id_from_ip(uint32 ip);
 
     void startQuery(IP_PORT ip_port);
     void shutDownQuery();

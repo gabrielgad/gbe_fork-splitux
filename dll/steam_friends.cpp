@@ -71,6 +71,11 @@ struct Avatar_Numbers Steam_Friends::add_friend_avatars(CSteamID id)
         "account_avatar.jpg",
         "account_avatar.jpeg",
     };
+    static const std::initializer_list<std::string> avatar_icons_default = {
+        "account_avatar_default.png",
+        "account_avatar_default.jpg",
+        "account_avatar_default.jpeg",
+    };
 
     if (!settings->disable_account_avatar && (id == settings->get_local_steam_id())) {
         std::string file_path{};
@@ -104,7 +109,7 @@ struct Avatar_Numbers Steam_Friends::add_friend_avatars(CSteamID id)
 
             // try local location first, then try global location
             for (const auto &settings_path : { Local_Storage::get_game_settings_path(), local_storage->get_global_settings_path() }) {
-                for (const auto &file_name : avatar_icons) {
+                for (const auto &file_name : avatar_icons_default) {
                     file_path = settings_path + file_name;
                     file_size = file_size_(file_path);
                     if (file_size) break;
@@ -1070,9 +1075,27 @@ const char* Steam_Friends::get_friend_rich_presence_silent( CSteamID steamIDFrie
         f = find_friend(steamIDFriend);
     }
 
-    if (f && is_appid_compatible(f)) {
+    if (f && is_appid_compatible(f) && pchKey) {
         auto result = f->rich_presence().find(pchKey);
-        if (result != f->rich_presence().end()) value = result->second.c_str();
+        if (result != f->rich_presence().end()) {
+            value = result->second.c_str();
+        } else if (f->lobby_id()) {
+            // Real Steam auto-derives the "connect"/"Joinable" rich presence from a
+            // member's joinable lobby (it launches/joins the game with the param
+            // +connect_lobby <64-bit lobby id>). goldberg historically did not, so
+            // games that drive friends "Join Game" purely off rich presence (e.g.
+            // EOSPlus+Steam titles like StarRupture) saw GetFriendRichPresence(host,
+            // "connect") == "" and reported "No sessions available". Derive it here
+            // when the friend is in a (non-invisible) lobby and the game didn't set
+            // the key itself. settings->get_lobby() only tracks non-invisible lobbies,
+            // so a non-zero lobby_id is a good proxy for "joinable".
+            if (strcmp(pchKey, "connect") == 0) {
+                rich_presence_connect = "+connect_lobby " + std::to_string(f->lobby_id());
+                value = rich_presence_connect.c_str();
+            } else if (strcmp(pchKey, "Joinable") == 0) {
+                value = "true";
+            }
+        }
     }
 
     return value;

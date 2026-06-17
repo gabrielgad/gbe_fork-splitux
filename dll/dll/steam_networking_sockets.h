@@ -117,6 +117,7 @@ public ISteamNetworkingSockets
     void set_steamnetconnectioninfo(std::map<HSteamNetConnection, Connect_Socket>::iterator connect_socket, SteamNetConnectionInfo_t *pInfo);
     void set_steamnetconnectioninfo_001(std::map<HSteamNetConnection, Connect_Socket>::iterator connect_socket, SteamNetConnectionInfo001_t* pInfo);
 
+
     void launch_callback(HSteamNetConnection m_hConn, enum connect_socket_status old_status);
 
     void Callback(Common_Message *msg);

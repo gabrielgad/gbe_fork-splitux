@@ -85,7 +85,7 @@ void Steam_Overlay_Stats::render_stats(int current_language)
         settings->overlay_appearance.stats_text_b,
         settings->overlay_appearance.stats_text_a
     ));
-    
+
     std::stringstream stats_txt_buff{};
     if (show_fps) {
         stats_txt_buff << translationFpsDisplay[current_language]

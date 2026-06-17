@@ -1,11 +1,11 @@
-require("premake", ">=5.0.0-beta2")
+require("premake", ">=5.0.0-beta8")
 
 -- don't forget to set env var CMAKE_GENERATOR to one of these values:
 -- https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html#manual:cmake-generators(7)
 -- common ones
 -- ============
 -- Unix Makefiles
--- Visual Studio 17 2022
+-- Visual Studio 18 2026
 -- MSYS Makefiles
 
 local os_iden = '' -- identifier
@@ -104,6 +104,12 @@ newoption {
     description = "Extract portaudio",
 }
 
+newoption {
+    category = "extract",
+    trigger = "ext-sdl",
+    description = "Extract sdl",
+}
+
 -- build
 newoption {
     category = "build",
@@ -172,6 +178,12 @@ newoption {
     category = "build",
     trigger = "build-portaudio",
     description = "Build portaudio",
+}
+
+newoption {
+    category = "build",
+    trigger = "build-sdl",
+    description = "Build sdl",
 }
 
 local function merge_list(src, dest)
@@ -340,7 +352,7 @@ local function cmake_build(dep_folder, is_32, extra_cmd_defs, c_flags_init, cxx_
     -- write toolchain file
     local toolchain_file_content = ''
     if _OPTIONS["cmake-toolchain"] then
-        toolchain_file_content='include(' .. _OPTIONS["cmake-toolchain"] .. ')\n\n'
+        toolchain_file_content = 'include(' .. _OPTIONS["cmake-toolchain"] .. ')\n\n'
     end
     if #cflags_init_str > 0 then
         toolchain_file_content = toolchain_file_content .. 'set(CMAKE_C_FLAGS_INIT "' .. cflags_init_str .. '" )\n'
@@ -465,6 +477,9 @@ end
 if _OPTIONS["ext-portaudio"] or _OPTIONS["all-ext"] then
     table.insert(deps_to_extract, { 'portaudio/portaudio.tar.gz', 'portaudio' })
 end
+if _OPTIONS["ext-sdl"] or _OPTIONS["all-ext"] then
+    table.insert(deps_to_extract, { 'sdl/sdl.tar.gz', 'sdl' })
+end
 
 -- start extraction
 for _, dep in pairs(deps_to_extract) do
@@ -538,8 +553,7 @@ if _OPTIONS["build-zlib"] or _OPTIONS["all-build"] then
     -- The current zlib installs its static lib as 'zs.lib', but downstream deps
     -- (protobuf, curl) are pointed at ZLIB_LIBRARY=.../zlibstatic.lib by wild_zlib.
     -- Mirror zs.lib -> zlibstatic.lib after each build so those hardcoded paths
-    -- resolve on a clean build (a stale zlibstatic.lib from older builds used to
-    -- hide this on already-warm runners).
+    -- resolve on a clean build (a stale zlibstatic.lib used to hide this on warm runners).
     local function mirror_zlib_static(arch_iden)
         local libdir = path.join(deps_dir, 'zlib', 'install' .. arch_iden, 'lib')
         local zs = path.join(libdir, 'zs.lib')
@@ -590,12 +604,12 @@ local mbedx509_name = ''
 -- name
 if _ACTION and os.target() == 'windows' then
     if string.match(_ACTION, 'vs.+') then
-        zlib_name = 'zlibstatic'
+        zlib_name = 'zs'
         mbedtls_name = 'mbedtls'
         mbedcrypto_name = 'mbedcrypto'
         mbedx509_name = 'mbedx509'
     elseif string.match(_ACTION, 'gmake.*') then
-        zlib_name = 'libzlibstatic'
+        zlib_name = 'libzs'
         mbedtls_name = 'libmbedtls'
         mbedcrypto_name = 'libmbedcrypto'
         mbedx509_name = 'libmbedx509'
@@ -682,9 +696,7 @@ if _OPTIONS["build-curl"] or _OPTIONS["all-build"] then
         
         "CURL_USE_MBEDTLS=ON",
         -- "CURL_USE_SCHANNEL=ON",
-        -- CURL_CA_FALLBACK is OpenSSL-only; newer curl hard-errors when it is set
-        -- without CURL_USE_OPENSSL ("CURL_CA_FALLBACK only works with OpenSSL"),
-        -- which broke clean deps rebuilds. We build curl with MbedTLS, so omit it.
+        "CURL_CA_FALLBACK=OFF",
 
         -- fix building on Arch Linux
         "CURL_USE_LIBSSH2=OFF",
@@ -721,12 +733,6 @@ end
 if _OPTIONS["build-protobuf"] or _OPTIONS["all-build"] then
     local proto_common_defs = {
         "ABSL_PROPAGATE_CXX_STD=ON",
-        -- Skip test targets in protobuf AND its fetched abseil. Besides being
-        -- pointless to build, abseil's test helpers (e.g.
-        -- random_internal_distribution_test_util) produce extremely deep
-        -- build/.tlog paths that blow past Windows' 260-char MAX_PATH (MSB3491)
-        -- on a clean build.
-        "BUILD_TESTING=OFF",
         "protobuf_BUILD_PROTOBUF_BINARIES=ON",
         "protobuf_BUILD_PROTOC_BINARIES=ON",
         "protobuf_BUILD_LIBPROTOC=ON",
@@ -846,5 +852,25 @@ if _OPTIONS["build-portaudio"] or _OPTIONS["all-build"] then
     end
     if _OPTIONS["64-build"] then
         cmake_build('portaudio', false, portaudio_common_defs)
+    end
+end
+
+if _OPTIONS["build-sdl"] or _OPTIONS["all-build"] then
+    local sdl_common_defs = {
+        -- enable / disable SDL subsystems
+        "SDL_AUDIO=OFF",
+        "SDL_VIDEO=OFF",
+        "SDL_HIDAPI=OFF",
+        "SDL_SENSOR=OFF",
+        "SDL_DIALOG=OFF",
+        "SDL_TRAY=OFF",
+        "SDL_UNIX_CONSOLE_BUILD=ON",
+    }
+
+    if _OPTIONS["32-build"] then
+        cmake_build('sdl', true, sdl_common_defs)
+    end
+    if _OPTIONS["64-build"] then
+        cmake_build('sdl', false, sdl_common_defs)
     end
 end

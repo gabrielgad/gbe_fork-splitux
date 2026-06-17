@@ -28,7 +28,7 @@ permissions:
   contents: "write"
 
 env:
-  PREMAKE_ACTION: "gmake2"
+  PREMAKE_ACTION: "gmake"
   LOCAL_DEPS_DIR: "/home/runner/gbe-deps"
   THIRD_PARTY_BASE_DIR: "third-party"
 
@@ -53,9 +53,9 @@ jobs:
       - name: "Link local deps"
         run: |
           mkdir -p build/deps/linux
-          rm -rf build/deps/linux/gmake2
-          ln -s "$LOCAL_DEPS_DIR/gmake2" build/deps/linux/gmake2
-          echo "Linked deps from $LOCAL_DEPS_DIR"
+          rm -rf build/deps/linux/gmake build/deps/linux/gmake2
+          ln -s "$LOCAL_DEPS_DIR/gmake2" build/deps/linux/gmake
+          echo "Linked deps from $LOCAL_DEPS_DIR/gmake2 -> build/deps/linux/gmake (premake5 v5.0.0-beta8 renamed gmake2 -> gmake)"
 
       - name: "Clone third-party build helpers (common/linux)"
         uses: actions/checkout@v4
@@ -75,19 +75,38 @@ jobs:
           ref: "third-party/deps/linux"
           path: "${{env.THIRD_PARTY_BASE_DIR}}/deps/linux"
 
+      - name: "Install premake5"
+        working-directory: "${{ github.workspace }}"
+        env:
+          PREMAKE_VERSION: "5.0.0-beta8"
+        run: |
+          mkdir -p ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake
+          rm -f ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
+          curl -sSL "https://github.com/premake/premake-core/releases/download/v${PREMAKE_VERSION}/premake-${PREMAKE_VERSION}-linux.tar.gz" \
+            | tar xz -C ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake premake5
+          chmod +x ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --version
+
+      - name: "Generate protobuf code"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          mkdir -p proto_gen/linux
+          PROTOC=build/deps/linux/gmake/protobuf/install64/bin/protoc
+          [ -x "$PROTOC" ] || chmod +x "$PROTOC" 2>/dev/null || true
+          "$PROTOC" dll/net.proto -I./dll/ --cpp_out=proto_gen/linux
+
       - name: "Generate project files"
         working-directory: "${{ github.workspace }}"
         run: |
-          chmod +x ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5
-          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --genproto --emubuild=${{ github.sha }} --os=linux gmake2
+          ./${{env.THIRD_PARTY_BASE_DIR}}/common/linux/premake/premake5 --file=premake5.lua --emubuild=${{ github.sha }} --os=linux gmake
 
       - name: "Build all targets"
-        working-directory: "${{ github.workspace }}/build/project/gmake2/linux"
+        working-directory: "${{ github.workspace }}/build/project/gmake/linux"
         run: |
           for prj in api_regular steamclient_regular api_experimental steamclient_experimental tool_lobby_connect tool_generate_interfaces; do
             for arch in x64 x32; do
               echo "=== Building $prj ($arch, release) ==="
-              make -j$(nproc) config=release_$arch $prj || echo "Warning: $prj $arch release build failed"
+              make -j4 config=release_$arch $prj || echo "Warning: $prj $arch release build failed"
             done
           done
 
@@ -95,12 +114,12 @@ jobs:
         working-directory: "${{ github.workspace }}"
         run: |
           chmod +x package_linux.sh
-          ./package_linux.sh gmake2/release
+          ./package_linux.sh gmake/release
 
       - name: "List packaged files"
         run: |
           echo "=== Packaged files ==="
-          ls -la build/package/linux/gmake2/ || echo "No packaged files found"
+          ls -la build/package/linux/gmake/ || echo "No packaged files found"
 
       - name: "Upload to Release"
         if: inputs.release_tag != ''
@@ -119,7 +138,7 @@ jobs:
 
             ## Includes
             - `steamnetworkingsockets` library for games using GameNetworkingSockets.dll', github.sha) || '' }}
-          files: build/package/linux/gmake2/*release*
+          files: build/package/linux/gmake/*release*
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

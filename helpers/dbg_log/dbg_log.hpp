@@ -4,6 +4,7 @@
 #include <string_view>
 #include <mutex>
 #include <cstdio>
+#include <cstdlib>
 #include <chrono>
 
 class dbg_log
@@ -36,3 +37,19 @@ public:
     // and no side effects.
     bool is_active();
 };
+
+// Single process-wide logger, provided as an inline accessor so every translation
+// unit / project that uses PRINT_DEBUG gets it WITHOUT needing to link a specific
+// .cpp that defines a global (e.g. lib_steam_old uses PRINT_DEBUG but does not link
+// base.cpp, and has no get_full_program_path). Log path: GSE_LOG_PATH env if set,
+// else a fixed name in the process CWD. The file is opened lazily and only if
+// logging actually activates (see dbg_log::is_active / GSE_FORCE_LOG).
+inline dbg_log& dbg_logger_get()
+{
+    static dbg_log instance(
+        []() -> std::string {
+            const char* p = std::getenv("GSE_LOG_PATH");
+            return (p && p[0]) ? std::string(p) : std::string("STEAM_LOG.log");
+        }());
+    return instance;
+}

@@ -28,11 +28,9 @@ std::recursive_mutex global_mutex{};
 extern const std::chrono::time_point<std::chrono::high_resolution_clock> startup_counter = std::chrono::high_resolution_clock::now();
 extern const std::chrono::time_point<std::chrono::system_clock> startup_time = std::chrono::system_clock::now();
 
-// Defined in release too so logging can be activated at runtime via GSE_FORCE_LOG
-// (dbg_log::is_active). The constructor only builds the path string; the file is not
-// opened unless logging actually activates, so release builds with logging off pay
-// nothing beyond a static string + one cached env check.
-dbg_log dbg_logger(get_full_program_path() + "STEAM_LOG_" + std::to_string(common_helpers::rand_number(UINT32_MAX)) + ".log");
+// NOTE: the global logger now lives behind the inline accessor dbg_logger_get() in
+// dbg_log.hpp (so every project that uses PRINT_DEBUG gets it without linking this
+// file). It is no longer defined here.
 
 
 #ifdef __WINDOWS__
