@@ -660,8 +660,21 @@ bool Networking::handle_announce(Common_Message *msg, IP_PORT ip_port)
     }
 
     PRINT_DEBUG("Handle Announce: %u, " "%" PRIu64 ", %u, %u", conn->appid, msg->source_id(), msg->announce().appid(), msg->announce().type());
-    conn->tcp_ip_port = ip_port;
-    conn->tcp_ip_port.port = htons(msg->announce().tcp_port());
+    // SPLITUX: prefer a loopback peer TCP endpoint when available. On a multi-homed
+    // host the SAME local instance announces on every interface (loopback, LAN,
+    // wireguard, podman, ...), so without this the last announce wins and we can
+    // latch onto a non-loopback address that two local instances cannot reliably
+    // round-trip over TCP -- the outgoing TCP never establishes, received_data is
+    // never set, and ALL reliable sendTo() traffic is silently dropped (ret=false),
+    // which the game sees as a peer session timeout. Once loopback is seen, keep it.
+    {
+        bool new_is_loopback = ((ntohl(ip_port.ip) >> 24) == 0x7F);
+        bool cur_is_loopback = ((ntohl(conn->tcp_ip_port.ip) >> 24) == 0x7F);
+        if (new_is_loopback || !cur_is_loopback) {
+            conn->tcp_ip_port = ip_port;
+            conn->tcp_ip_port.port = htons(msg->announce().tcp_port());
+        }
+    }
     conn->appid = msg->announce().appid();
 
     for (int i = 0; i < msg->announce().ids_size(); ++i) {
@@ -711,7 +724,13 @@ bool Networking::handle_announce(Common_Message *msg, IP_PORT ip_port)
             delete[] buffer;
         }
     } else if (msg->announce().type() == Announce::PONG) {
-        conn->udp_ip_port = ip_port;
+        // SPLITUX: same loopback preference as tcp_ip_port above, for the
+        // unreliable UDP path between two local (multi-homed) instances.
+        bool new_is_loopback = ((ntohl(ip_port.ip) >> 24) == 0x7F);
+        bool cur_is_loopback = conn->udp_pinged && ((ntohl(conn->udp_ip_port.ip) >> 24) == 0x7F);
+        if (new_is_loopback || !cur_is_loopback) {
+            conn->udp_ip_port = ip_port;
+        }
         conn->udp_pinged = true;
     }
 
