@@ -9,12 +9,12 @@ permissions:
 
 env:
   PREMAKE_ACTION: "gmake2"
-  LOCAL_DEPS_DIR: "/home/runner/gbe-deps"
+  LOCAL_DEPS_DIR: "/root/gbe-deps"
   THIRD_PARTY_BASE_DIR: "third-party"
 
 jobs:
   deps-build:
-    runs-on: [self-hosted, Linux, X64, splitux]
+    runs-on: [self-hosted, gbe-fork-splitux-ci]
     if: ${{ !cancelled() }}
 
     steps:
